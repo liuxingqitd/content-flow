@@ -7,11 +7,11 @@
 - **看板管理** — 拖拽式 Kanban 看板，6 个状态列（待启动 → 写稿中 → 待审核 → 拍摄中 → 剪辑中 → 已发布 → 已归档），可视化追踪每个视频进度
 - **选题库** — 灵感采集、选题采纳、与视频双向关联，选题状态随视频生命周期自动联动
 - **逐字稿编辑器** — 基于 CodeMirror 6 的 Markdown 编辑器，支持字数统计、时长估算、版本管理
-- **内容合规检测** — 集成 DeepSeek API，自动检测逐字稿在抖音/小红书/视频号的违规风险，输出风险分级报告和修改建议
+- **AI Companion** — 通过全局侧边栏读取当前页面、搜索逐字稿，并按需加载本地提示词型 Skill
 - **多平台分发追踪** — 记录每个视频在抖音、小红书、视频号的发布状态（已发布/已违规/已跳过）、链接、推广费用
 - **数据分析** — 基于 Recharts 的多维度数据图表，支持从各平台后台导入原始运营数据
 - **本地优先** — 数据存储在用户本地文件系统（File System API），隐私可控，无需服务器
-- **Docker 开发环境** — 一键启动的开发容器，包含前端 Vite 开发服务器 + 后端风险检测 API
+- **Docker 开发环境** — 一键启动的开发容器，包含前端 Vite 开发服务器 + 本地 Express Runtime
 - **深色/浅色主题** — 45+ CSS 变量驱动，一键切换
 
 ## 技术栈
@@ -28,7 +28,7 @@
 | 图表 | Recharts |
 | 日期 | dayjs |
 | ID 生成 | nanoid |
-| 后端 | Express 5 + OpenAI SDK (DeepSeek) |
+| 后端 | Express 5 + CopilotKit Runtime + OpenAI-compatible Provider |
 | Docker | Node 22 Alpine + docker compose |
 
 ## 快速开始
@@ -48,20 +48,47 @@ npm install
 npm run dev
 
 # 仅前端
-npx vite
+npm run dev:vite
 
-# 仅后端（风险检测 API）
+# 仅后端（AI Companion Runtime）
 npm run dev:server
 ```
 
-### 内容合规检测
+### 桌面客户端（Tauri）
 
-风险检测需要 DeepSeek API Key。在项目根目录创建 `.env` 文件：
+桌面版会把前端和本机 Express Runtime 封装到一个 macOS App 中。打开 App 后，Tauri 会自动启动本地 API sidecar，用户不需要手动运行 `npm run dev`。
+
+```bash
+# 生成本机 API sidecar
+npm run package:server
+
+# 启动 Tauri 开发客户端
+npm run desktop:dev
+
+# 构建 macOS .app
+npm run desktop:build
+```
+
+当前构建产物为 macOS `.app`，输出在 `src-tauri/target/*/bundle/macos/ContentFlow.app`。DMG、签名、公证和自动更新留到分发阶段处理。
+
+### AI Companion
+
+AI Companion 基于 CopilotKit OSS，在网站内提供页面感知、内容搜索、逐字稿读取、数据分析和受控 Agent 操作。
+
+1. 同时启动前端和本地 Express 服务：`npm run dev`
+2. 进入“设置 → AI Companion”
+3. 配置支持 OpenAI-compatible API 的服务商地址、API Key 和模型名称
+4. 测试连接并启用 Companion
+
+API Key 仅保存在当前浏览器，并在调用时发送给本机 Express Runtime；不会写入 ContentFlow 数据目录或导出备份。当前不支持执行型 Skill、MCP、多 Agent、计费或自动发布/删除。
+
+AI Companion 会动态发现本机的提示词型 Skill。默认扫描 `~/.claude/skills`、`~/.agents/skills` 和 Docker 中的 `/skills`；Docker 开发配置会同时只读挂载 `.claude` 与 `.agents` 两套目录。也可以通过逗号分隔的 `SKILLS_ROOTS` 覆盖：
 
 ```env
-DEEPSEEK_API_KEY=你的API密钥
-DEEPSEEK_BASE_URL=https://api.deepseek.com
+SKILLS_ROOTS=~/.claude/skills,~/.agents/skills
 ```
+
+所有包含 `SKILL.md` 的 Skill 都可以被侧栏按需加载，不限制 Skill 名称。为保持本地安全边界，Companion 只读取 Skill 目录内的 `SKILL.md` 和 `references/**/*.md`，不执行其中描述的 Shell、Python、联网、文件修改或其他外部工具。
 
 ### Docker 开发
 
@@ -96,7 +123,6 @@ src/
 │   └── Settings/        # 系统设置
 ├── services/
 │   ├── fileSystem.ts    # 文件系统读写、数据迁移
-│   ├── riskDetectApi.ts # 前端风险检测 API 客户端
 │   └── defaultData.ts   # 默认数据
 ├── store/
 │   └── appStore.ts      # 全局 Zustand store（所有业务逻辑）
@@ -109,7 +135,9 @@ src/
     └── date.ts          # 日期工具
 
 server/
-└── index.ts             # 内容风险检测 API（Express）
+├── copilot/             # AI Companion Runtime 与 Provider 配置
+├── skills/              # 本地提示词型 Skill Registry
+└── index.ts             # Express API 入口
 
 docs/
 └── plans/               # 设计文档 & 实现方案

@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { pickDirectory, isFileSystemSupported, isSecureContext } from '@/services/fileSystem'
 import { useAppStore } from '@/store/appStore'
+import { isTauriRuntime } from '@/utils/api'
 
 export function DirectorySetup() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const loadData = useAppStore(s => s.loadData)
+  const isDesktop = isTauriRuntime()
 
   const handlePick = async () => {
     if (!isSecureContext()) {
@@ -41,41 +43,61 @@ export function DirectorySetup() {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      minHeight: '100vh', background: 'var(--bg-base)',
+      minHeight: '100vh', padding: 24,
+      background: 'var(--bg-root)',
     }}>
-      <div style={{ maxWidth: 360, width: '100%', margin: '0 16px', textAlign: 'center' }}>
+      <div style={{
+        maxWidth: 420, width: '100%', textAlign: 'center',
+        padding: '32px 32px 28px',
+        borderRadius: 'var(--radius-xl)',
+        border: '1px solid var(--border-subtle)',
+        background: 'var(--bg-surface)',
+        boxShadow: 'var(--shadow-lg)',
+      }}>
         {/* Logo */}
         <div style={{
-          width: 64, height: 64, borderRadius: 'var(--radius-xl)', background: 'var(--accent)',
+          width: 48, height: 48, borderRadius: 'var(--radius-lg)',
+          background: 'linear-gradient(135deg, var(--accent) 0%, #a78bfa 100%)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 24px',
-          boxShadow: '0 8px 32px rgba(124,88,237,0.4)',
+          margin: '0 auto 20px',
+          boxShadow: '0 0 0 1px var(--accent-glow), 0 8px 24px var(--accent-glow)',
         }}>
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
             <path d="M4 16l6 6 14-12" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
 
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>起哥的AI实战</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 32, lineHeight: 1.7 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 650, color: 'var(--text-primary)', marginBottom: 8, letterSpacing: '-0.02em' }}>起哥的AI实战</h1>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.7 }}>
           选择一个本地文件夹作为数据目录，<br />
           您的所有数据将安全地存储在本地。
         </p>
 
         {/* Steps */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32, textAlign: 'left' }}>
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 0,
+          marginBottom: 20, textAlign: 'left',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--border-subtle)',
+          background: 'var(--bg-raised)',
+          overflow: 'hidden',
+        }}>
           {['选择或新建一个专属的本地文件夹', '所有数据以 JSON 和 Markdown 格式保存', '随时备份、迁移，完全掌控'].map((text, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 12px',
+              borderBottom: i < 2 ? '1px solid var(--border-faint)' : 'none',
+            }}>
               <div style={{
-                width: 24, height: 24, borderRadius: '50%',
+                width: 22, height: 22, borderRadius: 'var(--radius-sm)',
                 background: 'var(--accent-subtle)',
                 color: 'var(--accent)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 700, flexShrink: 0,
+                fontSize: 11, fontWeight: 600, flexShrink: 0,
               }}>
                 {i + 1}
               </div>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{text}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{text}</span>
             </div>
           ))}
         </div>
@@ -87,10 +109,19 @@ export function DirectorySetup() {
           选择数据目录
         </Button>
 
-        {error && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 12 }}>{error}</p>}
+        {error && (
+          <p style={{
+            fontSize: 12, color: 'var(--danger)', marginTop: 12,
+            padding: '8px 10px', borderRadius: 'var(--radius-md)',
+            border: '1px solid rgba(248,113,113,0.2)', background: 'rgba(248,113,113,0.08)',
+            textAlign: 'left', lineHeight: 1.6,
+          }}>
+            {error}
+          </p>
+        )}
 
         <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 16 }}>
-          需要 Chrome 86+ 或 Edge 86+ 以上版本
+          {isDesktop ? '桌面客户端使用原生文件访问能力' : '需要 Chrome 86+ 或 Edge 86+ 以上版本'}
         </p>
       </div>
     </div>

@@ -17,14 +17,15 @@ export function StatusBadge({ status, className }: { status: VideoStatus; classN
     <span
       className={className}
       style={{
-        display: 'inline-flex', alignItems: 'center',
+        display: 'inline-flex', alignItems: 'center', gap: 5,
         padding: '2px 8px', borderRadius: 99,
-        fontSize: 11, fontWeight: 600,
+        fontSize: 10, fontWeight: 600,
         background: s.bg, color: s.color,
         border: `1px solid ${s.border}`,
         whiteSpace: 'nowrap', letterSpacing: '-0.01em',
       }}
     >
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
       {VIDEO_STATUS_LABELS[status]}
     </span>
   )

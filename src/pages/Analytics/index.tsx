@@ -10,7 +10,7 @@ type SortDir = 'asc' | 'desc'
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   return (
-    <span style={{ marginLeft: 4, opacity: active ? 1 : 0.3, fontSize: 10 }}>
+    <span style={{ marginLeft: 6, opacity: active ? 0.9 : 0.28, fontSize: 10 }}>
       {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
     </span>
   )
@@ -58,17 +58,17 @@ function Th({
     <th
       onClick={() => onSort(sortKey)}
       style={{
-        padding: '8px 12px',
-        fontSize: 11, fontWeight: 600,
+        padding: '10px 16px',
+        fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
         color: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
         textAlign: numeric ? 'right' : 'left',
         cursor: 'pointer',
         userSelect: 'none',
         whiteSpace: 'nowrap',
         borderBottom: '1px solid var(--border-subtle)',
-        background: 'var(--bg-elevated)',
+        background: 'var(--bg-surface)',
         position: 'sticky', top: 0, zIndex: 1,
-        transition: 'color .1s',
+        transition: 'color var(--duration-fast)',
       }}
     >
       {label}
@@ -81,7 +81,11 @@ function Th({
 function NumCell({ value, format }: { value: number; format?: (v: number) => string }) {
   const display = format ? format(value) : value.toLocaleString()
   return (
-    <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-primary)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+    <td style={{
+      padding: '10px 16px', borderBottom: '1px solid var(--border-faint)',
+      fontSize: 12, fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums',
+      color: 'var(--text-primary)', textAlign: 'right', whiteSpace: 'nowrap',
+    }}>
       {display}
     </td>
   )
@@ -90,7 +94,8 @@ function NumCell({ value, format }: { value: number; format?: (v: number) => str
 function TextCell({ value, maxWidth = 240 }: { value: string; maxWidth?: number }) {
   return (
     <td style={{
-      padding: '8px 12px', fontSize: 12, color: 'var(--text-primary)',
+      padding: '10px 16px', borderBottom: '1px solid var(--border-faint)',
+      fontSize: 12, color: 'var(--text-primary)',
       maxWidth, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
     }} title={value}>
       {value}
@@ -112,7 +117,7 @@ function DouyinTable({ records }: { records: DouyinRawRecord[] }) {
   const sec = (v: number) => `${v.toFixed(1)}s`
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div style={{ overflowX: 'auto', background: 'var(--bg-surface)' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
         <thead>
           <tr>
@@ -130,16 +135,16 @@ function DouyinTable({ records }: { records: DouyinRawRecord[] }) {
             <Th {...thProps('saves', '收藏', true)} />
             <Th {...thProps('profileVisits', '主页访问', true)} />
             <Th {...thProps('followerGain', '粉丝增量', true)} />
-            <th style={{ padding: '8px 12px', width: 40, borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1 }} />
+            <th style={{ padding: '10px 16px', width: 40, borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', position: 'sticky', top: 0, zIndex: 1 }} />
           </tr>
         </thead>
         <tbody>
-          {sorted.map((row, i) => (
+          {sorted.map(row => (
             <tr
               key={row.id}
-              style={{ background: i % 2 === 0 ? 'var(--bg-surface)' : 'var(--bg-elevated)' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--accent-subtle)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = i % 2 === 0 ? 'var(--bg-surface)' : 'var(--bg-elevated)'}
+              style={{ background: 'var(--bg-surface)', transition: 'background var(--duration-fast)' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)'}
             >
               <TextCell value={row.title} />
               <TextCell value={row.publishedAt.slice(0, 10)} maxWidth={100} />
@@ -155,7 +160,7 @@ function DouyinTable({ records }: { records: DouyinRawRecord[] }) {
               <NumCell value={row.saves} />
               <NumCell value={row.profileVisits} />
               <NumCell value={row.followerGain} />
-              <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border-faint)', textAlign: 'center' }}>
                 <DeleteBtn onClick={() => deleteDouyinRecord(row.id)} />
               </td>
             </tr>
@@ -179,7 +184,7 @@ function ShipinhaoTable({ records }: { records: ShipinhaoRawRecord[] }) {
   const pct = (v: number) => `${(v * 100).toFixed(1)}%`
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div style={{ overflowX: 'auto', background: 'var(--bg-surface)' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
         <thead>
           <tr>
@@ -197,22 +202,22 @@ function ShipinhaoTable({ records }: { records: ShipinhaoRawRecord[] }) {
             <Th {...thProps('setRingtone', '设为铃声', true)} />
             <Th {...thProps('setStatus', '设为状态', true)} />
             <Th {...thProps('setMomentCover', '朋友圈封面', true)} />
-            <th style={{ padding: '8px 12px', width: 40, borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1 }} />
+            <th style={{ padding: '10px 16px', width: 40, borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', position: 'sticky', top: 0, zIndex: 1 }} />
           </tr>
         </thead>
         <tbody>
-          {sorted.map((row, i) => (
+          {sorted.map(row => (
             <tr
               key={row.id}
-              style={{ background: i % 2 === 0 ? 'var(--bg-surface)' : 'var(--bg-elevated)' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--accent-subtle)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = i % 2 === 0 ? 'var(--bg-surface)' : 'var(--bg-elevated)'}
+              style={{ background: 'var(--bg-surface)', transition: 'background var(--duration-fast)' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)'}
             >
               <TextCell value={row.description} />
               <TextCell value={row.publishedAt} maxWidth={100} />
               <NumCell value={row.plays} />
               <NumCell value={row.completionRate} format={pct} />
-              <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{row.avgPlayDuration}</td>
+              <td style={{ padding: '10px 16px', borderBottom: '1px solid var(--border-faint)', fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{row.avgPlayDuration}</td>
               <NumCell value={row.recommendations} />
               <NumCell value={row.likes} />
               <NumCell value={row.comments} />
@@ -222,7 +227,7 @@ function ShipinhaoTable({ records }: { records: ShipinhaoRawRecord[] }) {
               <NumCell value={row.setRingtone} />
               <NumCell value={row.setStatus} />
               <NumCell value={row.setMomentCover} />
-              <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border-faint)', textAlign: 'center' }}>
                 <DeleteBtn onClick={() => deleteShipinhaoRecord(row.id)} />
               </td>
             </tr>
@@ -247,7 +252,7 @@ function XiaohongshuTable({ records }: { records: XiaohongshuRawRecord[] }) {
   const sec = (v: number) => `${v.toFixed(0)}s`
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div style={{ overflowX: 'auto', background: 'var(--bg-surface)' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
         <thead>
           <tr>
@@ -264,16 +269,16 @@ function XiaohongshuTable({ records }: { records: XiaohongshuRawRecord[] }) {
             <Th {...thProps('shares', '分享', true)} />
             <Th {...thProps('follows', '涨粉', true)} />
             <Th {...thProps('danmaku', '弹幕', true)} />
-            <th style={{ padding: '8px 12px', width: 40, borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1 }} />
+            <th style={{ padding: '10px 16px', width: 40, borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', position: 'sticky', top: 0, zIndex: 1 }} />
           </tr>
         </thead>
         <tbody>
-          {sorted.map((row, i) => (
+          {sorted.map(row => (
             <tr
               key={row.id}
-              style={{ background: i % 2 === 0 ? 'var(--bg-surface)' : 'var(--bg-elevated)' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--accent-subtle)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = i % 2 === 0 ? 'var(--bg-surface)' : 'var(--bg-elevated)'}
+              style={{ background: 'var(--bg-surface)', transition: 'background var(--duration-fast)' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)'}
             >
               <TextCell value={row.title} />
               <TextCell value={row.publishedAt.slice(0, 10)} maxWidth={100} />
@@ -288,7 +293,7 @@ function XiaohongshuTable({ records }: { records: XiaohongshuRawRecord[] }) {
               <NumCell value={row.shares} />
               <NumCell value={row.follows} />
               <NumCell value={row.danmaku} />
-              <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border-faint)', textAlign: 'center' }}>
                 <DeleteBtn onClick={() => deleteXiaohongshuRecord(row.id)} />
               </td>
             </tr>
@@ -317,25 +322,29 @@ export function Analytics() {
   return (
     <PageContainer title="数据分析" subtitle={`${totalRecords} 条记录`}>
       {/* Platform Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 24, borderBottom: '1px solid var(--border-subtle)' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        margin: '-24px -24px 24px', padding: '0 24px',
+        borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)',
+      }}>
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => setPlatform(t.id)}
             style={{
-              padding: '8px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+              padding: '11px 14px 10px', fontSize: 13, fontWeight: platform === t.id ? 550 : 450, cursor: 'pointer',
               border: 'none', background: 'transparent',
               borderBottom: `2px solid ${platform === t.id ? 'var(--accent)' : 'transparent'}`,
               color: platform === t.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-              marginBottom: -1, transition: 'color .1s', display: 'flex', alignItems: 'center', gap: 6,
+              marginBottom: -1, transition: 'color var(--duration-fast)', display: 'flex', alignItems: 'center', gap: 7,
             }}
           >
             {t.label}
             <span style={{
               fontSize: 11, fontWeight: 600,
-              padding: '1px 6px', borderRadius: 99,
-              background: platform === t.id ? 'var(--accent)' : 'var(--bg-elevated)',
-              color: platform === t.id ? '#fff' : 'var(--text-tertiary)',
+              minWidth: 20, padding: '1px 6px', borderRadius: 99,
+              background: platform === t.id ? 'var(--accent-subtle)' : 'var(--bg-raised)',
+              color: platform === t.id ? 'var(--accent)' : 'var(--text-tertiary)',
             }}>
               {t.count}
             </span>
@@ -345,7 +354,7 @@ export function Analytics() {
 
       {/* Table */}
       <div style={{
-        borderRadius: 12,
+        borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--border-subtle)',
         background: 'var(--bg-surface)',
         overflow: 'hidden',
@@ -376,14 +385,14 @@ function DeleteBtn({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       title="删除此条记录"
       style={{
-        width: 26, height: 26, borderRadius: 6,
+        width: 26, height: 26, borderRadius: 'var(--radius-sm)',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         border: 'none', background: 'transparent',
         color: 'var(--text-tertiary)', cursor: 'pointer',
-        transition: 'all .12s',
+        transition: 'all var(--duration-fast)',
       }}
       onMouseEnter={e => {
-        (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.1)'
+        (e.currentTarget as HTMLElement).style.background = 'var(--danger-subtle)'
         ;(e.currentTarget as HTMLElement).style.color = 'var(--danger)'
       }}
       onMouseLeave={e => {
@@ -402,7 +411,7 @@ function DeleteBtn({ onClick }: { onClick: () => void }) {
 
 function EmptyHint({ platform }: { platform: string }) {
   return (
-    <div style={{ padding: 48, textAlign: 'center' }}>
+    <div style={{ padding: '64px 24px', textAlign: 'center', background: 'var(--bg-surface)' }}>
       <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>暂无{platform}数据</p>
       <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 6 }}>从平台后台导出数据后录入</p>
     </div>

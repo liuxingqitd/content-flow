@@ -9,11 +9,13 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
-      - ${HOME}/.claude/skills:/skills:ro
+      - ${HOME}/.claude/skills:/skills/claude:ro
+      - ${HOME}/.agents/skills:/skills/agents:ro
     env_file:
       - .env
     environment:
       - NODE_ENV=development
-      - SKILLS_DIR=/skills/content-risk-detector/references
+      - COPILOTKIT_TELEMETRY_DISABLED=true
+      - SKILLS_ROOTS=/skills/claude,/skills/agents
     stdin_open: true
     tty: true

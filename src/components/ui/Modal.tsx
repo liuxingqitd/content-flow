@@ -33,7 +33,7 @@ export function Modal({ open, onClose, title, children, size = 'md', footer }: M
       {/* Backdrop */}
       <div style={{
         position: 'absolute', inset: 0,
-        background: 'rgba(0,0,0,0.6)',
+        background: 'rgba(4,4,8,0.68)',
         backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)',
       }} onClick={onClose} />
@@ -46,7 +46,7 @@ export function Modal({ open, onClose, title, children, size = 'md', footer }: M
           border: '1px solid var(--border-default)',
           borderRadius: 'var(--radius-xl)',
           boxShadow: 'var(--shadow-xl)',
-          animation: 'scaleIn .14s ease-out',
+          animation: 'scaleIn var(--duration-normal) var(--ease-out)',
         }}
       >
         {title && (

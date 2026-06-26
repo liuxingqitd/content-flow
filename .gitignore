@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-server
 *.local
 
 # Editor directories and files
@@ -30,3 +31,7 @@ dist-ssr
 
 # Claude Code
 .claude/
+
+# Tauri
+src-tauri/target
+src-tauri/binaries/contentflow-api-*

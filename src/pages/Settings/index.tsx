@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { clearStoredHandle, pickDirectory, isSecureContext, isFileSystemSupported } from '@/services/fileSystem'
 import type { Tag, ChecklistItem, TransitionKey, AppSettings } from '@/types'
+import { AIProviderSettings } from '@/copilot/AIProviderSettings'
 
 export function Settings() {
   const data = useAppStore(s => s.data)
@@ -136,14 +137,14 @@ export function Settings() {
   }
 
   const sectionTitle = (text: string) => (
-    <h2 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 12, letterSpacing: '-0.01em' }}>{text}</h2>
+    <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.015em' }}>{text}</h2>
   )
 
   const groupLabel = (text: string) => (
     <div style={{
-      fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)',
-      textTransform: 'uppercase', letterSpacing: '0.08em',
-      paddingBottom: 10, marginBottom: 4,
+      fontSize: 11, fontWeight: 650, color: 'var(--text-tertiary)',
+      letterSpacing: '0.06em',
+      paddingBottom: 12,
       borderBottom: '1px solid var(--border-subtle)',
     }}>
       {text}
@@ -151,7 +152,8 @@ export function Settings() {
   )
 
   const itemListStyle: React.CSSProperties = {
-    borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', overflow: 'hidden',
+    borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)',
+    background: 'var(--bg-surface)', overflow: 'hidden',
   }
 
   const renderItemRow = (
@@ -165,10 +167,10 @@ export function Settings() {
       key={key}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '10px 16px',
+        minHeight: 52, padding: '10px 16px',
         borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)',
         background: 'var(--bg-surface)',
-        transition: 'background .1s',
+        transition: 'background var(--duration-fast)',
       }}
       onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
       onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)'}
@@ -177,7 +179,7 @@ export function Settings() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <button
           onClick={onEdit}
-          style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 4, transition: 'color .1s' }}
+          style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '4px 8px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 'var(--radius-sm)', transition: 'all var(--duration-fast)' }}
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'}
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'}
         >
@@ -185,7 +187,7 @@ export function Settings() {
         </button>
         <button
           onClick={onDelete}
-          style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 4, transition: 'color .1s' }}
+          style={{ fontSize: 11, color: 'var(--text-tertiary)', padding: '4px 8px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 'var(--radius-sm)', transition: 'all var(--duration-fast)' }}
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--danger)'}
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'}
         >
@@ -198,9 +200,9 @@ export function Settings() {
   const renderTransitionSection = (key: TransitionKey, label: string) => {
     const items = transitionChecklists?.[key] ?? []
     return (
-      <div key={key}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{label}</span>
+      <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 12, fontWeight: 550, color: 'var(--text-secondary)' }}>{label}</span>
           <Button variant="secondary" size="sm" onClick={() => openNewTransitionChecklist(key)}>+ 新建检查项</Button>
         </div>
         <div style={itemListStyle}>
@@ -234,15 +236,17 @@ export function Settings() {
 
   return (
     <PageContainer title="设置">
-      <div style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 40 }}>
+      <div style={{ width: '100%', maxWidth: 720, display: 'flex', flexDirection: 'column', gap: 48 }}>
 
         {/* ── 系统 ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
           {groupLabel('系统')}
 
           <section>
-            {sectionTitle('外观')}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ marginBottom: 14 }}>
+              {sectionTitle('外观')}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {(['dark', 'light'] as const).map(t => {
                 const active = data?.settings.theme === t
                 return (
@@ -251,11 +255,11 @@ export function Settings() {
                     onClick={() => updateSettings({ theme: t })}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '8px 16px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-                      border: `1px solid ${active ? 'var(--accent)' : 'var(--border-default)'}`,
+                      padding: '7px 14px', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 550, cursor: 'pointer',
+                      border: `1px solid ${active ? 'var(--border-focus)' : 'var(--border-default)'}`,
                       background: active ? 'var(--accent-subtle)' : 'transparent',
                       color: active ? 'var(--accent)' : 'var(--text-secondary)',
-                      transition: 'all .12s',
+                      transition: 'all var(--duration-fast)',
                     }}
                   >
                     {t === 'dark' ? (
@@ -276,7 +280,67 @@ export function Settings() {
           </section>
 
           <section>
-            {sectionTitle('数据管理')}
+            <div style={{ marginBottom: 14 }}>
+              {sectionTitle('隐私')}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {([
+                {
+                  title: '投放金额',
+                  value: data?.settings.hidePromotionCost ?? false,
+                  onChange: (value: boolean) => updateSettings({ hidePromotionCost: value }),
+                  options: [
+                    { value: false, label: '显示投放金额' },
+                    { value: true, label: '隐藏投放金额' },
+                  ],
+                },
+                {
+                  title: '商单金额',
+                  value: data?.settings.hideCommercialAmount ?? false,
+                  onChange: (value: boolean) => updateSettings({ hideCommercialAmount: value }),
+                  options: [
+                    { value: false, label: '显示商单金额' },
+                    { value: true, label: '隐藏商单金额' },
+                  ],
+                },
+              ] as const).map(group => (
+                <div key={group.title} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ width: 64, fontSize: 12, color: 'var(--text-secondary)', fontWeight: 550 }}>{group.title}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {group.options.map(({ value, label }) => {
+                      const active = group.value === value
+                      return (
+                        <button
+                          key={label}
+                          onClick={() => group.onChange(value)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '7px 14px', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 550, cursor: 'pointer',
+                            border: `1px solid ${active ? 'var(--border-focus)' : 'var(--border-default)'}`,
+                            background: active ? 'var(--accent-subtle)' : 'transparent',
+                            color: active ? 'var(--accent)' : 'var(--text-secondary)',
+                            transition: 'all var(--duration-fast)',
+                          }}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>
+              演示或分享时可分别隐藏投放成本和商单金额相关数据
+            </p>
+          </section>
+
+          <AIProviderSettings />
+
+          <section>
+            <div style={{ marginBottom: 14 }}>
+              {sectionTitle('数据管理')}
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
                 {
@@ -292,7 +356,7 @@ export function Settings() {
               ].map(item => (
                 <div key={item.title} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: 16, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)',
+                  minHeight: 68, padding: '12px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)',
                 }}>
                   <div>
                     <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{item.title}</p>
@@ -305,7 +369,9 @@ export function Settings() {
           </section>
 
           <section>
-            {sectionTitle('快捷键')}
+            <div style={{ marginBottom: 14 }}>
+              {sectionTitle('快捷键')}
+            </div>
             <div style={itemListStyle}>
               {[
                 ['⌘ + S', '保存逐字稿'],
@@ -329,12 +395,14 @@ export function Settings() {
         </div>
 
         {/* ── 内容创作 ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
           {groupLabel('内容创作')}
 
           <section>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              {sectionTitle('标签管理')}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14, gap: 16 }}>
+              <div>
+                {sectionTitle('标签管理')}
+              </div>
               <Button variant="secondary" size="sm" onClick={openNewTag}>+ 新建标签</Button>
             </div>
             <div style={itemListStyle}>
@@ -357,12 +425,14 @@ export function Settings() {
         </div>
 
         {/* ── 看板流程 ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
           {groupLabel('看板流程')}
 
           <section>
-            {sectionTitle('状态转换检查项')}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ marginBottom: 14 }}>
+              {sectionTitle('状态转换检查项')}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {renderTransitionSection('topic→scripting', '待启动 → 写稿中')}
               {renderTransitionSection('scripting→review', '写稿中 → 待审核')}
               {renderTransitionSection('review→filming', '待审核 → 拍摄中')}
@@ -371,8 +441,10 @@ export function Settings() {
           </section>
 
           <section>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              {sectionTitle('剪辑中 → 已发布（发布前检查项）')}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14, gap: 16 }}>
+              <div>
+                {sectionTitle('剪辑中 → 已发布（发布前检查项）')}
+              </div>
               <Button variant="secondary" size="sm" onClick={openNewChecklist}>+ 新建检查项</Button>
             </div>
             <div style={itemListStyle}>
@@ -402,19 +474,21 @@ export function Settings() {
         </div>
 
         {/* ── 平台发布 ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
           {groupLabel('平台发布')}
 
           <section>
-            {sectionTitle('平台标注选项')}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ marginBottom: 14 }}>
+              {sectionTitle('平台标注选项')}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {([
                 { field: 'violationReasons' as ReasonField, label: '违规原因', items: violationReasons },
                 { field: 'skipReasons' as ReasonField, label: '跳过原因', items: skipReasons },
               ]).map(({ field, label, items }) => (
                 <div key={field}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{label}</span>
+                    <span style={{ fontSize: 12, fontWeight: 550, color: 'var(--text-secondary)' }}>{label}</span>
                     <Button variant="secondary" size="sm" onClick={() => openNewReason(field)}>+ 新建</Button>
                   </div>
                   <div style={itemListStyle}>

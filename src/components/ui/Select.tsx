@@ -14,10 +14,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         style={{
           height: 32, padding: '0 10px', borderRadius: 'var(--radius-md)',
           border: '1px solid var(--border-default)',
-          background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+          background: 'var(--bg-raised)', color: 'var(--text-primary)',
           fontSize: 13, fontFamily: 'inherit', letterSpacing: '-0.01em',
           cursor: 'pointer', outline: 'none',
-          transition: 'border-color .12s',
+          transition: 'border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out)',
           ...style,
         }}
         onFocus={e => {

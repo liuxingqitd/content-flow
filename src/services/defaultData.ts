@@ -195,6 +195,8 @@ export function defaultAppData(): AppData {
       defaultPlatforms: ['douyin', 'xiaohongshu', 'shipinhao'],
       violationReasons: ['违反社区公约', '涉嫌第三方导流'],
       skipReasons: ['该平台不适合此类内容', '本期跳过发布'],
+      hidePromotionCost: false,
+      hideCommercialAmount: false,
     },
   }
 }

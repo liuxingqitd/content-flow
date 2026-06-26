@@ -28,6 +28,8 @@ export function VideoDetail() {
   const videoRelations = useAppStore(s => s.data?.videoRelations ?? [])
   const violationReasons = useAppStore(s => s.data?.settings.violationReasons ?? ['违反社区公约', '涉嫌第三方导流'])
   const skipReasons = useAppStore(s => s.data?.settings.skipReasons ?? ['该平台不适合此类内容', '本期跳过发布'])
+  const hidePromotionCost = useAppStore(s => s.data?.settings.hidePromotionCost ?? false)
+  const hideCommercialAmount = useAppStore(s => s.data?.settings.hideCommercialAmount ?? false)
   const updateVideo = useAppStore(s => s.updateVideo)
   const moveVideo = useAppStore(s => s.moveVideo)
   const deleteVideo = useAppStore(s => s.deleteVideo)
@@ -154,6 +156,7 @@ export function VideoDetail() {
   }
 
   const [costDraft, setCostDraft] = useState<Partial<Record<Platform, string>>>({})
+  const [commercialAmountDraft, setCommercialAmountDraft] = useState<string | undefined>(undefined)
 
   // Platform modals
   const [skipModal, setSkipModal] = useState<Platform | null>(null)
@@ -219,6 +222,13 @@ export function VideoDetail() {
     closeRelationModal()
   }
 
+  const handleCommercialAmountBlur = () => {
+    if (commercialAmountDraft === undefined) return
+    const parsed = parseFloat(commercialAmountDraft)
+    updateVideo(video.id, { commercialAmount: isNaN(parsed) || parsed <= 0 ? undefined : parsed })
+    setCommercialAmountDraft(undefined)
+  }
+
   const statusOrderFiltered = VIDEO_STATUS_ORDER.filter(s => s !== 'archived')
 
   return (
@@ -231,10 +241,14 @@ export function VideoDetail() {
         </div>
       }
     >
-      <div style={{ maxWidth: 880, display: 'flex', flexDirection: 'column', gap: 32 }}>
+      <div style={{ maxWidth: 1180, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* Title inline edit */}
-        <div>
+        <div style={{
+          padding: '18px 20px', borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)',
+          boxShadow: 'var(--shadow-xs)',
+        }}>
           {editingTitle ? (
             <input
               autoFocus
@@ -246,7 +260,7 @@ export function VideoDetail() {
                 if (e.key === 'Escape') { setTitleValue(video.title); setEditingTitle(false) }
               }}
               style={{
-                width: '100%', fontSize: 22, fontWeight: 700,
+                width: '100%', fontSize: 20, fontWeight: 650,
                 background: 'transparent', borderBottom: '2px solid var(--accent)',
                 color: 'var(--text-primary)', outline: 'none', paddingBottom: 4,
                 fontFamily: 'inherit',
@@ -255,7 +269,7 @@ export function VideoDetail() {
           ) : (
             <h1
               onClick={() => { setTitleValue(video.title); setEditingTitle(true) }}
-              style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', cursor: 'text', transition: 'color .1s' }}
+              style={{ fontSize: 20, fontWeight: 650, color: 'var(--text-primary)', cursor: 'text', transition: 'color .1s', letterSpacing: '-0.025em', lineHeight: 1.4 }}
               title="点击编辑标题"
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--accent)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'}
@@ -266,8 +280,11 @@ export function VideoDetail() {
         </div>
 
         {/* Status workflow */}
-        <div>
-          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.07em' }}>工作流进度</p>
+        <div style={{
+          padding: '16px 20px', borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)',
+        }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>工作流进度</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
             {statusOrderFiltered.map((s, i) => {
               const currentI = VIDEO_STATUS_ORDER.indexOf(video.status)
@@ -280,9 +297,10 @@ export function VideoDetail() {
                     onClick={() => moveVideo(video.id, s)}
                     style={{
                       padding: '4px 10px', borderRadius: 99, fontSize: 12, fontWeight: 500,
-                      border: 'none', cursor: 'pointer', transition: 'all .12s',
-                      background: active ? 'var(--accent)' : done ? 'var(--bg-elevated)' : 'var(--bg-elevated)',
-                      color: active ? '#fff' : done ? 'var(--text-tertiary)' : 'var(--text-tertiary)',
+                      cursor: 'pointer', transition: 'all .12s',
+                      background: active ? 'var(--accent)' : 'var(--bg-elevated)',
+                      color: active ? '#fff' : 'var(--text-secondary)',
+                      border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
                       textDecoration: done ? 'line-through' : 'none',
                     }}
                     onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}
@@ -318,12 +336,12 @@ export function VideoDetail() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(320px, 360px)', gap: 20, alignItems: 'start' }}>
           {/* Left col */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
             {/* Cover images */}
-            <div>
-              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.07em' }}>封面图</p>
+            <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>封面图</p>
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                 {/* Portrait cover 3:4 */}
                 <CoverSlot
@@ -334,7 +352,7 @@ export function VideoDetail() {
                   onUpload={file => handleCoverUpload('portrait', file)}
                   onDelete={() => handleCoverDelete('portrait')}
                   onDownload={() => handleCoverDownload('portrait')}
-                  width={80}
+                  width={120}
                 />
                 {/* Landscape cover 4:3 */}
                 <CoverSlot
@@ -345,13 +363,13 @@ export function VideoDetail() {
                   onUpload={file => handleCoverUpload('landscape', file)}
                   onDelete={() => handleCoverDelete('landscape')}
                   onDownload={() => handleCoverDownload('landscape')}
-                  width={110}
+                  width={160}
                 />
               </div>
             </div>
 
-            <div>
-              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.07em' }}>视频简介</p>
+            <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>视频简介</p>
               <Textarea
                 value={video.description ?? ''}
                 onChange={e => updateVideo(video.id, { description: e.target.value })}
@@ -360,8 +378,52 @@ export function VideoDetail() {
               />
             </div>
 
-            <div>
-              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.07em' }}>关联逐字稿</p>
+            <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>商单</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>标记合作视频并记录商单金额</p>
+                </div>
+                <button
+                  onClick={() => {
+                    updateVideo(video.id, video.isCommercial
+                      ? { isCommercial: false, commercialAmount: undefined }
+                      : { isCommercial: true })
+                    setCommercialAmountDraft(undefined)
+                  }}
+                  style={{
+                    padding: '5px 12px', borderRadius: 99, fontSize: 12, fontWeight: 600,
+                    border: `1px solid ${video.isCommercial ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                    background: video.isCommercial ? 'var(--accent-alpha)' : 'transparent',
+                    color: video.isCommercial ? 'var(--accent)' : 'var(--text-tertiary)',
+                    cursor: 'pointer', transition: 'all .1s', flexShrink: 0,
+                  }}
+                >
+                  {video.isCommercial ? '已标记' : '标记商单'}
+                </button>
+              </div>
+              {video.isCommercial && (
+                hideCommercialAmount ? (
+                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 12 }}>商单金额已在隐私设置中隐藏</p>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, maxWidth: 220 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>¥</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="商单金额"
+                      value={commercialAmountDraft ?? (video.commercialAmount != null ? String(video.commercialAmount) : '')}
+                      onChange={e => setCommercialAmountDraft(e.target.value)}
+                      onBlur={handleCommercialAmountBlur}
+                    />
+                  </div>
+                )
+              )}
+            </div>
+
+            <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>关联逐字稿</p>
               {script ? (
                 <button
                   onClick={() => navigate(`/scripts/${script.id}`)}
@@ -397,9 +459,9 @@ export function VideoDetail() {
               )}
             </div>
 
-            <div>
+            <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>相关视频</p>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>相关视频</p>
                 <Button variant="secondary" size="sm" onClick={() => setRelationModal(true)}>关联视频</Button>
               </div>
               {relatedRelations.length > 0 ? (
@@ -448,8 +510,8 @@ export function VideoDetail() {
               )}
             </div>
 
-            <div>
-              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.07em' }}>标签</p>
+            <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>标签</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {tags.map(tag => {
                   const selected = video.tagIds.includes(tag.id)
@@ -477,8 +539,8 @@ export function VideoDetail() {
               </div>
             </div>
 
-            <div>
-              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.07em' }}>拍摄形式</p>
+            <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>拍摄形式</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {ALL_SHOOTING_FORMATS.map(fmt => {
                   const selected = (video.shootingFormats ?? []).includes(fmt)
@@ -509,10 +571,10 @@ export function VideoDetail() {
           </div>
 
           {/* Right col */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
             {/* Platform status */}
-            <div>
-              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.07em' }}>发布平台</p>
+            <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>发布平台</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {ALL_PLATFORMS.map(platform => {
                   const pub = video.platforms.find(p => p.platform === platform)
@@ -523,10 +585,10 @@ export function VideoDetail() {
                     <div
                       key={platform}
                       style={{
-                        borderRadius: 9,
+                        borderRadius: 8,
                         border: `1px solid ${pub ? color + '40' : 'var(--border-subtle)'}`,
                         background: pub ? color + '08' : 'transparent',
-                        padding: '10px 12px',
+                        padding: 12,
                       }}
                     >
                       {/* Row header */}
@@ -581,6 +643,7 @@ export function VideoDetail() {
                           <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
                             {formatDate(pub.publishedAt)}
                           </p>
+                          {!hidePromotionCost && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6 }}>
                             <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>¥</span>
                             <input
@@ -609,6 +672,7 @@ export function VideoDetail() {
                               <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>已记录</span>
                             )}
                           </div>
+                          )}
                         </div>
                       )}
                       {pub && status === 'violated' && pub.violation && (
@@ -627,8 +691,8 @@ export function VideoDetail() {
               </div>
             </div>
 
-            <div>
-              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.07em' }}>备注</p>
+            <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>备注</p>
               <Textarea
                 value={video.notes ?? ''}
                 onChange={e => updateVideo(video.id, { notes: e.target.value })}
@@ -637,7 +701,7 @@ export function VideoDetail() {
               />
             </div>
 
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 6, padding: '14px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', fontVariantNumeric: 'tabular-nums' }}>
               <p>创建：{formatDate(video.createdAt)}</p>
               <p>最后更新：{fromNow(video.updatedAt)}</p>
             </div>
@@ -645,9 +709,9 @@ export function VideoDetail() {
         </div>
 
         {/* Metrics */}
-        <div>
+        <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>平台数据</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>平台数据</p>
             <Button variant="secondary" size="sm" onClick={openMetricModal}>
               + 录入数据
             </Button>
@@ -924,10 +988,10 @@ function CoverSlot({
       <div
         style={{
           width, height, borderRadius: 8, overflow: 'hidden', position: 'relative',
-          border: `1px solid ${hover ? 'var(--border-default)' : 'var(--border-subtle)'}`,
-          background: 'var(--bg-elevated)',
+          border: `1px solid ${hover ? 'var(--accent)' : 'var(--border-subtle)'}`,
+          background: hover && !url ? 'var(--accent-subtle)' : 'var(--bg-elevated)',
           cursor: 'pointer',
-          transition: 'border-color .12s',
+          transition: 'border-color .12s, background .12s',
           flexShrink: 0,
         }}
         onMouseEnter={() => setHover(true)}
@@ -991,7 +1055,7 @@ function CoverSlot({
               <circle cx="7.5" cy="7.5" r="1.5"/>
               <path d="M2 13l4.5-4.5L10 12l3-3 5 5"/>
             </svg>
-            <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>上传</span>
+            <span style={{ fontSize: 10, color: hover ? 'var(--accent)' : 'var(--text-tertiary)' }}>上传</span>
           </div>
         )}
       </div>

@@ -28,11 +28,13 @@ const TABLE_COLUMNS = [
 ] as const
 
 const PLATFORM_DISPLAY_ORDER: Platform[] = ['shipinhao', 'xiaohongshu', 'douyin']
+const coverThumbCache = new Map<string, string>()
 
 export function Videos() {
   const navigate = useNavigate()
   const videos = useAppStore(s => s.data?.videos ?? [])
   const tags = useAppStore(s => s.data?.tags ?? [])
+  const hidePromotionCost = useAppStore(s => s.data?.settings.hidePromotionCost ?? false)
   const addVideo = useAppStore(s => s.addVideo)
 
   const displayVideos = useMemo(() => videos.filter(v => v.status === 'published' || v.status === 'archived'), [videos])
@@ -93,11 +95,16 @@ export function Videos() {
       }
     >
       {/* Filters */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div style={{ maxWidth: 260 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap',
+        padding: 12, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)',
+        background: 'var(--bg-surface)',
+      }}>
+        <div style={{ width: 248, maxWidth: '100%' }}>
           <Input placeholder="搜索视频…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+        <div style={{ width: 1, height: 24, background: 'var(--border-subtle)', flexShrink: 0 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: 1 }}>
           <FilterChip
             active={filterStatus === 'all' && !filterPlatform}
             onClick={() => setVideoFilter('all')}
@@ -144,16 +151,26 @@ export function Videos() {
           action={<Button variant="primary" size="sm" onClick={() => setNewModal(true)}>新建视频</Button>}
         />
       ) : (
-        <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', overflowX: 'auto', maxWidth: '100%' }}>
-          <table style={{ width: '100%', minWidth: TABLE_COLUMNS.reduce((sum, col) => sum + col.width, 0), tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 13 }}>
+        <div style={{
+          borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)',
+          overflow: 'auto', maxWidth: '100%', background: 'var(--bg-surface)', boxShadow: 'var(--shadow-xs)',
+        }}>
+          <table style={{ width: '100%', minWidth: TABLE_COLUMNS.filter(c => !hidePromotionCost || c.key !== 'cost').reduce((sum, col) => sum + col.width, 0), tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
             <colgroup>
-              {TABLE_COLUMNS.map(col => <col key={col.key} style={{ width: col.width }} />)}
+              {TABLE_COLUMNS.map(col => (
+                hidePromotionCost && col.key === 'cost' ? null : <col key={col.key} style={{ width: col.width }} />
+              ))}
             </colgroup>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
-                <th style={{ width: 74, padding: '10px 8px 10px 16px' }} />
-                {['标题', '标签', '拍摄形式', '投放金额', '已发布', '已违规', '已跳过', '更新'].map(h => (
-                  <th key={h} style={{ textAlign: 'left', padding: '10px 16px', fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+              <tr>
+                <th style={{ width: 74, padding: '9px 8px 9px 16px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1 }} />
+                {['标题', '标签', '拍摄形式', ...(hidePromotionCost ? [] : ['投放金额']), '已发布', '已违规', '已跳过', '更新'].map(h => (
+                  <th key={h} style={{
+                    textAlign: 'left', padding: '9px 16px', fontSize: 11, fontWeight: 600,
+                    color: 'var(--text-tertiary)', letterSpacing: '0.04em',
+                    borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)',
+                    position: 'sticky', top: 0, zIndex: 1,
+                  }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -168,21 +185,21 @@ export function Videos() {
                       borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                       cursor: 'pointer',
                       background: 'var(--bg-surface)',
-                      transition: 'background .1s',
+                      transition: 'background .12s',
                     }}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)'}
                   >
-                    <td style={{ padding: '6px 8px 6px 16px', width: 74 }}>
-                      <CoverThumb videoId={video.id} ext={video.coverPortrait} />
+                    <td style={{ padding: '8px 8px 8px 16px', width: 74, borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                      <CoverThumb key={`${video.id}:${video.coverPortrait ?? ''}:${video.updatedAt}`} videoId={video.id} ext={video.coverPortrait} updatedAt={video.updatedAt} />
                     </td>
-                    <td style={{ padding: '10px 16px', minWidth: 0 }}>
-                      <p style={{ fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{video.title}</p>
+                    <td style={{ padding: '10px 16px', minWidth: 0, borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                      <p style={{ fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>{video.title}</p>
                       {video.description && (
                         <p style={{ fontSize: 11, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{video.description}</p>
                       )}
                     </td>
-                    <td style={{ padding: '10px 16px' }}>
+                    <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {videoTags.slice(0, 2).map(tag => (
                           <span
@@ -197,27 +214,29 @@ export function Videos() {
                         )}
                       </div>
                     </td>
-                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       {video.shootingFormats && video.shootingFormats.length > 0
                         ? video.shootingFormats.map(f => SHOOTING_FORMAT_LABELS[f] ?? f).join('、')
                         : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
                     </td>
-                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                    {!hidePromotionCost && (
+                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       {(() => {
                         const total = video.platforms.reduce((sum, p) => sum + (p.promotionCost ?? 0), 0)
                         return total > 0 ? `¥${total.toLocaleString()}` : <span style={{ color: 'var(--text-tertiary)' }}>—</span>
                       })()}
                     </td>
-                    <td style={{ padding: '10px 16px' }}>
+                    )}
+                    <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       <PlatformStatusIcons platforms={video.platforms} status="published" />
                     </td>
-                    <td style={{ padding: '10px 16px' }}>
+                    <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       <PlatformStatusIcons platforms={video.platforms} status="violated" />
                     </td>
-                    <td style={{ padding: '10px 16px' }}>
+                    <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       <PlatformStatusIcons platforms={video.platforms} status="skipped" />
                     </td>
-                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       {fromNow(video.updatedAt)}
                     </td>
                   </tr>
@@ -267,31 +286,57 @@ function PlatformStatusIcons({ platforms, status }: { platforms: PlatformPublish
   )
 }
 
-function CoverThumb({ videoId, ext }: { videoId: string; ext?: string }) {
-  const imageKey = ext ? `${videoId}:${ext}` : null
-  const [image, setImage] = useState<{ key: string; url: string } | null>(null)
-  const urlRef = useRef<string | null>(null)
+function CoverThumb({ videoId, ext, updatedAt }: { videoId: string; ext?: string; updatedAt: string }) {
+  const imageKey = ext ? `${videoId}:${ext}:${updatedAt}` : null
+  const [image, setImage] = useState<{ key: string; url: string } | null>(() => {
+    const cached = imageKey ? coverThumbCache.get(imageKey) : undefined
+    return cached && imageKey ? { key: imageKey, url: cached } : null
+  })
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!ext) return
-    const key = `${videoId}:${ext}`
+    if (!ext || !imageKey || coverThumbCache.has(imageKey)) return
     let cancelled = false
-    readCoverImage(videoId, 'portrait', ext).then(u => {
-      if (cancelled) { if (u) URL.revokeObjectURL(u); return }
-      if (!u) return
-      if (urlRef.current) URL.revokeObjectURL(urlRef.current)
-      urlRef.current = u
-      setImage({ key, url: u })
-    })
+
+    const loadImage = () => {
+      readCoverImage(videoId, 'portrait', ext).then(u => {
+        if (cancelled) {
+          if (u) URL.revokeObjectURL(u)
+          return
+        }
+        if (!u) return
+        coverThumbCache.set(imageKey, u)
+        setImage({ key: imageKey, url: u })
+      })
+    }
+
+    const node = containerRef.current
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      loadImage()
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          loadImage()
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '360px 0px' },
+    )
+    observer.observe(node)
     return () => {
       cancelled = true
-      if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null }
+      observer.disconnect()
     }
-  }, [videoId, ext])
+  }, [videoId, ext, imageKey])
 
   return (
-    <div style={{
-      width: 54, height: 72, borderRadius: 6, overflow: 'hidden',
+    <div ref={containerRef} style={{
+      width: 48, height: 64, borderRadius: 7, overflow: 'hidden',
       background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
       flexShrink: 0,
     }}>
@@ -316,10 +361,10 @@ function FilterChip({ active, onClick, label, color, activeBg }: { active: boole
     <button
       onClick={onClick}
       style={{
-        padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-        cursor: 'pointer', border: 'none',
-        background: active ? (isCustom ? activeBg : 'var(--accent)') : 'transparent',
-        color: active ? (isCustom ? color : '#fff') : 'var(--text-secondary)',
+        padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+        cursor: 'pointer', border: `1px solid ${active ? (isCustom ? `${color}45` : 'var(--accent)') : 'transparent'}`,
+        background: active ? (isCustom ? activeBg : 'var(--accent-subtle)') : 'transparent',
+        color: active ? (isCustom ? color : 'var(--accent)') : 'var(--text-secondary)',
         transition: 'background .1s, color .1s',
       }}
       onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}

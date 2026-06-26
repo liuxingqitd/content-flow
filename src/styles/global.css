@@ -5,27 +5,35 @@
    ══════════════════════════════════════════════ */
 :root,
 [data-theme="dark"] {
-  --bg-base:      #0e0f13;
-  --bg-surface:   #131418;
-  --bg-elevated:  #1a1b22;
-  --bg-overlay:   #21222b;
-  --bg-hover:     #1e1f27;
+  --bg-root:      #08080d;
+  --bg-base:      #0d0d14;
+  --bg-surface:   #111118;
+  --bg-raised:    #16161f;
+  --bg-elevated:  var(--bg-raised);
+  --bg-overlay:   #1c1c27;
+  --bg-hover:     rgba(255,255,255,0.04);
+  --bg-active:    rgba(255,255,255,0.06);
 
-  --border-subtle:  rgba(255,255,255,0.055);
-  --border-default: rgba(255,255,255,0.09);
+  --border-faint:   rgba(255,255,255,0.04);
+  --border-subtle:  rgba(255,255,255,0.07);
+  --border-default: rgba(255,255,255,0.10);
   --border-strong:  rgba(255,255,255,0.15);
+  --border-focus:   rgba(124,92,252,0.40);
 
-  --text-primary:   #e4e5ea;
-  --text-secondary: #8b8d98;
-  --text-tertiary:  #525460;
-  --text-inverse:   #0e0f13;
+  --text-primary:   #e8e8ed;
+  --text-secondary: #8e8e9a;
+  --text-tertiary:  #60606c;
+  --text-disabled:  #3e3e48;
+  --text-inverse:   #0d0d14;
 
-  --accent:           #7c58ed;
-  --accent-hover:     #8b6af0;
-  --accent-subtle:    rgba(124,88,237,0.10);
-  --accent-light:     rgba(124,88,237,0.15);
-  --accent-glow:      rgba(124,88,237,0.20);
-  --accent-alpha:     rgba(124,88,237,0.08);
+  --accent:           #7c5cfc;
+  --accent-hover:     #8f73fd;
+  --accent-pressed:   #6a48e8;
+  --accent-subtle:    rgba(124,92,252,0.10);
+  --accent-light:     rgba(124,92,252,0.15);
+  --accent-soft:      var(--accent-light);
+  --accent-glow:      rgba(124,92,252,0.20);
+  --accent-alpha:     rgba(124,92,252,0.08);
   --accent-secondary: #3b82f6;
 
   --status-topic-bg:       rgba(107,114,128,0.16);
@@ -49,29 +57,55 @@
   --status-archived-bg:    rgba(75,85,99,0.12);
   --status-archived-text:  #6b7280;
   --status-archived-border: rgba(75,85,99,0.20);
+  --status-topic: var(--status-topic-text);
+  --status-scripting: var(--status-scripting-text);
+  --status-review: var(--status-review-text);
+  --status-filming: var(--status-filming-text);
+  --status-editing: var(--status-editing-text);
+  --status-published: var(--status-published-text);
+  --status-archived: var(--status-archived-text);
 
   --success:       #34d399;
   --success-hover: #059669;
+  --success-soft:  rgba(52,211,153,0.08);
   --warning:       #fbbf24;
+  --warning-soft:  rgba(251,191,36,0.08);
   --danger:        #f87171;
   --danger-hover:  #dc2626;
+  --danger-soft:   rgba(248,113,113,0.08);
+  --danger-subtle: rgba(248,113,113,0.12);
   --info:          #60a5fa;
+  --info-soft:     rgba(96,165,250,0.08);
 
-  --risk-critical: #EF4444;
-  --risk-high:     #F97316;
-  --risk-medium:   #EAB308;
-  --risk-low:      #3B82F6;
 
-  --shadow-xs:  0 1px 2px rgba(0,0,0,.3);
-  --shadow-sm:  0 1px 3px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.2);
-  --shadow-md:  0 4px 12px rgba(0,0,0,.5);
-  --shadow-lg:  0 8px 24px rgba(0,0,0,.6);
-  --shadow-xl:  0 16px 48px rgba(0,0,0,.7);
+  --shadow-xs:  0 1px 2px rgba(0,0,0,.4);
+  --shadow-sm:  0 1px 3px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.3);
+  --shadow-md:  0 4px 16px rgba(0,0,0,.55);
+  --shadow-lg:  0 8px 32px rgba(0,0,0,.65);
+  --shadow-xl:  0 16px 48px rgba(0,0,0,.75);
 
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
+  --radius-full: 999px;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-slow: 250ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'Cascadia Code', monospace;
+  --header-h: 52px;
 
   color-scheme: dark;
 }
@@ -81,26 +115,34 @@
    ══════════════════════════════════════════════ */
 [data-theme="light"] {
   --accent-alpha:     rgba(101,64,217,0.06);
-  --bg-base:      #f7f7f9;
+  --bg-root:      #f6f7fa;
+  --bg-base:      #fafbfc;
   --bg-surface:   #ffffff;
-  --bg-elevated:  #f0f0f4;
-  --bg-overlay:   #eaeaef;
-  --bg-hover:     #ededf2;
+  --bg-raised:    #f2f3f7;
+  --bg-elevated:  var(--bg-raised);
+  --bg-overlay:   #ffffff;
+  --bg-hover:     rgba(0,0,0,0.04);
+  --bg-active:    rgba(0,0,0,0.06);
 
-  --border-subtle:  rgba(0,0,0,0.06);
+  --border-faint:   rgba(0,0,0,0.04);
+  --border-subtle:  rgba(0,0,0,0.07);
   --border-default: rgba(0,0,0,0.10);
-  --border-strong:  rgba(0,0,0,0.18);
+  --border-strong:  rgba(0,0,0,0.15);
+  --border-focus:   rgba(112,77,232,0.40);
 
-  --text-primary:   #14151a;
-  --text-secondary: #5b5d6b;
-  --text-tertiary:  #9496a1;
-  --text-inverse:   #f7f7f9;
+  --text-primary:   #13141a;
+  --text-secondary: #5e5f6e;
+  --text-tertiary:  #7d7f8d;
+  --text-disabled:  #c4c5ce;
+  --text-inverse:   #fafbfc;
 
-  --accent:           #6540d9;
-  --accent-hover:     #7c58ed;
-  --accent-subtle:    rgba(101,64,217,0.07);
-  --accent-light:     rgba(101,64,217,0.11);
-  --accent-glow:      rgba(101,64,217,0.18);
+  --accent:           #704de8;
+  --accent-hover:     #7c5cfc;
+  --accent-pressed:   #6540d9;
+  --accent-subtle:    rgba(112,77,232,0.08);
+  --accent-light:     rgba(112,77,232,0.12);
+  --accent-soft:      var(--accent-light);
+  --accent-glow:      rgba(112,77,232,0.18);
   --accent-secondary: #2563eb;
 
   --status-topic-bg:       rgba(107,114,128,0.10);
@@ -127,15 +169,16 @@
 
   --success:       #059669;
   --success-hover: #047857;
+  --success-soft:  rgba(5,150,105,0.06);
   --warning:       #d97706;
+  --warning-soft:  rgba(217,119,6,0.06);
   --danger:        #ef4444;
   --danger-hover:  #dc2626;
+  --danger-soft:   rgba(239,68,68,0.06);
+  --danger-subtle: rgba(239,68,68,0.10);
   --info:          #2563eb;
+  --info-soft:     rgba(37,99,235,0.06);
 
-  --risk-critical: #EF4444;
-  --risk-high:     #F97316;
-  --risk-medium:   #EAB308;
-  --risk-low:      #3B82F6;
 
   --shadow-xs:  0 1px 2px rgba(0,0,0,.04);
   --shadow-sm:  0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
@@ -159,9 +202,9 @@
 html, body, #root {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
-  background: var(--bg-base);
+  background: var(--bg-root);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -174,7 +217,10 @@ html, body, #root {
 ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
 
 ::selection { background: var(--accent-light); color: var(--text-primary); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+button, input, textarea, select { font: inherit; }
+button { color: inherit; }
+input::placeholder, textarea::placeholder { color: var(--text-disabled); }
 
 /* ══════════════════════════════════════════════
    Typography
@@ -183,6 +229,52 @@ h1, h2, h3, h4 {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'PingFang SC', system-ui, sans-serif;
   letter-spacing: -0.02em;
   font-weight: 600;
+}
+
+/* ══════════════════════════════════════════════
+   Shared product surfaces
+   ══════════════════════════════════════════════ */
+.app-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-root);
+}
+
+.main-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+.product-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.product-card:hover {
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-xs);
+}
+
+.product-section-label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+tbody tr {
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 /* ══════════════════════════════════════════════
@@ -198,6 +290,15 @@ h1, h2, h3, h4 {
 .animate-scale-in    { animation: scaleIn    .14s ease-out; }
 .animate-spin        { animation: spin 1s linear infinite; }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
 /* ══════════════════════════════════════════════
    CodeMirror host
    ══════════════════════════════════════════════ */
@@ -208,3 +309,153 @@ h1, h2, h3, h4 {
    Group hover utilities
    ══════════════════════════════════════════════ */
 .group:hover .delete-btn { opacity: 1 !important; }
+
+@media (max-width: 900px) {
+  .responsive-detail-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .responsive-page-header {
+    align-items: flex-start !important;
+    gap: 12px;
+    padding: 12px 16px !important;
+  }
+
+  .responsive-page-body {
+    padding: 16px !important;
+  }
+}
+/* AI Companion is optional until the user configures a local model provider. */
+.ai-companion-setup {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 50;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid var(--border-focus);
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--text-inverse);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--shadow-lg);
+}
+
+/* ══════════════════════════════════════════════
+   ContentFlow AI Companion
+   ══════════════════════════════════════════════ */
+[data-copilotkit] {
+  --background: var(--bg-surface);
+  --foreground: var(--text-primary);
+  --card: var(--bg-surface);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-overlay);
+  --popover-foreground: var(--text-primary);
+  --primary: #7c5cfc;
+  --primary-foreground: #fff;
+  --secondary: var(--bg-raised);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--bg-raised);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--accent-subtle);
+  --accent-foreground: var(--text-primary);
+  --border: var(--border-subtle);
+  --input: var(--border-default);
+  --ring: var(--accent);
+  --radius: var(--radius-lg);
+  font-family: inherit;
+}
+
+[data-theme="light"] [data-copilotkit] {
+  --primary: #704de8;
+  --accent: rgba(112, 77, 232, .08);
+}
+
+[data-copilot-sidebar] {
+  border-left: 1px solid var(--border-subtle) !important;
+  background: var(--bg-surface) !important;
+  box-shadow: -16px 0 48px rgba(0, 0, 0, .12);
+}
+
+[data-sidebar-chat] {
+  background:
+    radial-gradient(circle at 100% 0, var(--accent-alpha), transparent 34%),
+    var(--bg-surface);
+}
+
+[data-copilotkit] button {
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+[data-copilotkit] textarea {
+  caret-color: var(--accent);
+}
+
+[data-copilotkit] table {
+  width: 100%;
+  font-size: 12px;
+}
+
+[data-copilotkit] th,
+[data-copilotkit] td {
+  border-color: var(--border-subtle);
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.contentflow-ai-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.contentflow-ai-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border-focus);
+  border-radius: 9px;
+  background: linear-gradient(145deg, var(--accent), #9b87f5);
+  color: #fff;
+  box-shadow: 0 5px 16px var(--accent-glow);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .04em;
+}
+
+.contentflow-ai-header-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.contentflow-ai-header-copy strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+
+.contentflow-ai-header-copy span {
+  max-width: 300px;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 450;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

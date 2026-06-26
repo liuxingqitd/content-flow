@@ -10,14 +10,14 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const BASE: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  borderRadius: 'var(--radius-md)', fontWeight: 500, cursor: 'pointer',
-  transition: 'all .12s', userSelect: 'none', border: 'none',
+  borderRadius: 'var(--radius-md)', fontWeight: 550, cursor: 'pointer',
+  transition: 'all var(--duration-fast) var(--ease-out)', userSelect: 'none', border: 'none',
   fontFamily: 'inherit', letterSpacing: '-0.01em',
 }
 
 const VARIANTS: Record<string, React.CSSProperties> = {
-  primary:   { background: 'var(--accent)', color: '#fff', boxShadow: '0 1px 2px rgba(124,88,237,.3)' },
-  secondary: { background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' },
+  primary:   { background: 'var(--accent)', color: '#fff', boxShadow: '0 1px 3px rgba(124,92,252,.35)' },
+  secondary: { background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' },
   ghost:     { background: 'transparent', color: 'var(--text-secondary)', border: 'none' },
   danger:    { background: 'transparent', color: 'var(--danger)', border: 'none' },
 }
@@ -59,7 +59,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         if (variant === 'primary') {
           el.style.background = 'var(--accent)'
         } else if (variant === 'secondary') {
-          el.style.background = 'var(--bg-elevated)'
+          el.style.background = 'transparent'
         } else if (variant === 'ghost' || variant === 'danger') {
           el.style.background = 'transparent'
         }

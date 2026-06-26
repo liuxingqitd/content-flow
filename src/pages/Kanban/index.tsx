@@ -18,13 +18,13 @@ import { VIDEO_STATUS_LABELS, VIDEO_STATUS_ORDER } from '@/types'
 const COLUMNS: VideoStatus[] = ['topic', 'scripting', 'review', 'filming', 'editing', 'published']
 
 const STATUS_DOT: Record<VideoStatus, string> = {
-  topic:      'var(--status-topic-text)',
-  scripting:  'var(--status-scripting-text)',
-  review:     'var(--status-review-text)',
-  filming:    'var(--status-filming-text)',
-  editing:    'var(--status-editing-text)',
-  published:  'var(--status-published-text)',
-  archived:   'var(--status-archived-text)',
+  topic:      'var(--status-topic, var(--status-topic-text))',
+  scripting:  'var(--status-scripting, var(--status-scripting-text))',
+  review:     'var(--status-review, var(--status-review-text))',
+  filming:    'var(--status-filming, var(--status-filming-text))',
+  editing:    'var(--status-editing, var(--status-editing-text))',
+  published:  'var(--status-published, var(--status-published-text))',
+  archived:   'var(--status-archived, var(--status-archived-text))',
 }
 
 function KanbanColumn({
@@ -40,11 +40,11 @@ function KanbanColumn({
   const { setNodeRef } = useDroppable({ id: status })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: 280, flexShrink: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: 264, flexShrink: 0 }}>
       {/* Column header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 4px', marginBottom: 10,
+        padding: '0 4px', marginBottom: 8,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_DOT[status], flexShrink: 0 }} />
@@ -55,7 +55,7 @@ function KanbanColumn({
             <span style={{
               fontSize: 11, fontWeight: 600, padding: '1px 6px',
               borderRadius: 99,
-              background: 'var(--bg-elevated)',
+              background: 'var(--bg-raised, var(--bg-elevated))',
               color: 'var(--text-tertiary)',
               border: '1px solid var(--border-subtle)',
             }}>
@@ -97,13 +97,13 @@ function KanbanColumn({
         style={{
           flex: 1,
           minHeight: 120,
-          borderRadius: 10,
+          borderRadius: 'var(--radius-lg)',
           padding: 6,
           display: 'flex',
           flexDirection: 'column',
-          gap: 8,
-          background: isDragOver ? 'var(--accent-subtle)' : 'var(--bg-surface)',
-          border: `1.5px solid ${isDragOver ? 'var(--accent)' : 'var(--border-subtle)'}`,
+          gap: 6,
+          background: isDragOver ? 'var(--accent-subtle)' : 'var(--bg-base)',
+          border: `1px solid ${isDragOver ? 'var(--accent)' : 'var(--border-subtle)'}`,
           transition: 'all .15s',
         }}
       >
@@ -117,8 +117,8 @@ function KanbanColumn({
           <button
             onClick={() => onAddClick(status)}
             style={{
-              width: '100%', padding: '20px 0',
-              borderRadius: 8, border: '1.5px dashed var(--border-subtle)',
+              width: '100%', padding: '16px 0',
+              borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-default)',
               background: 'transparent', cursor: 'pointer',
               fontSize: 12, color: 'var(--text-tertiary)',
               transition: 'all .12s',
@@ -250,7 +250,8 @@ export function Kanban() {
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 24px',
+        minHeight: 'var(--header-h, 52px)',
+        padding: '10px 24px',
         borderBottom: '1px solid var(--border-subtle)',
         background: 'var(--bg-surface)',
         flexShrink: 0,
@@ -270,7 +271,7 @@ export function Kanban() {
                 style={{
                   padding: '4px 10px', borderRadius: 99, fontSize: 12, fontWeight: 500,
                   border: 'none', cursor: 'pointer', transition: 'all .12s',
-                  background: filterTagId === tag.id ? tag.color : 'var(--bg-elevated)',
+                  background: filterTagId === tag.id ? tag.color : 'var(--bg-raised, var(--bg-elevated))',
                   color: filterTagId === tag.id ? '#fff' : 'var(--text-secondary)',
                 }}
               >
@@ -284,7 +285,7 @@ export function Kanban() {
             style={{
               padding: '5px 10px', borderRadius: 'var(--radius-sm)', fontSize: 12,
               border: '1px solid var(--border-subtle)',
-              background: showArchived ? 'var(--bg-elevated)' : 'transparent',
+              background: showArchived ? 'var(--bg-active)' : 'transparent',
               color: 'var(--text-tertiary)', cursor: 'pointer',
               transition: 'all .12s',
             }}
@@ -339,8 +340,8 @@ export function Kanban() {
       >
         <div style={{
           flex: 1, overflowX: 'auto',
-          display: 'flex', gap: 16,
-          padding: '20px 24px',
+          display: 'flex', gap: 12,
+          padding: '16px 24px',
           alignItems: 'flex-start',
         }}>
           {displayCols.map(status => (
@@ -493,7 +494,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
       style={{
         padding: '4px 10px', borderRadius: 99, fontSize: 12, fontWeight: 500,
         border: 'none', cursor: 'pointer', transition: 'all .12s',
-        background: active ? 'var(--accent)' : 'var(--bg-elevated)',
+        background: active ? 'var(--accent)' : 'var(--bg-raised, var(--bg-elevated))',
         color: active ? '#fff' : 'var(--text-secondary)',
       }}
     >
@@ -533,7 +534,7 @@ function PrimaryBtn({ onClick, disabled, children }: { onClick: () => void; disa
       disabled={disabled}
       style={{
         padding: '6px 14px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
-        background: disabled ? 'var(--bg-elevated)' : 'var(--accent)',
+        background: disabled ? 'var(--bg-raised, var(--bg-elevated))' : 'var(--accent)',
         color: disabled ? 'var(--text-tertiary)' : '#fff',
         border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
         transition: 'all .12s', fontFamily: 'inherit',

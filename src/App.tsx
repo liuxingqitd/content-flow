@@ -4,7 +4,10 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { DirectorySetup } from '@/pages/DirectorySetup'
 import { useAppStore } from '@/store/appStore'
 import { getDirectoryHandle } from '@/services/fileSystem'
+import { CopilotGate } from '@/copilot/CopilotGate'
+import { useCopilotProviderReady } from '@/copilot/providerReadyContext'
 
+const CopilotBridge = lazy(() => import('@/copilot/CopilotBridge').then(m => ({ default: m.CopilotBridge })))
 const Dashboard   = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })))
 const Kanban      = lazy(() => import('@/pages/Kanban').then(m => ({ default: m.Kanban })))
 const Videos      = lazy(() => import('@/pages/Videos').then(m => ({ default: m.Videos })))
@@ -23,10 +26,17 @@ function LoadingFallback() {
 }
 
 function AppShell() {
+  const copilotProviderReady = useCopilotProviderReady()
+
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+    <div className="app-shell">
+      {copilotProviderReady && (
+        <Suspense fallback={null}>
+          <CopilotBridge />
+        </Suspense>
+      )}
       <Sidebar />
-      <main className="flex-1 min-w-0 overflow-hidden">
+      <main className="main-content">
         <Suspense fallback={<LoadingFallback />}>
           <Outlet />
         </Suspense>
@@ -88,5 +98,9 @@ export function App() {
 
   if (!data) return <DirectorySetup />
 
-  return <RouterProvider router={router} />
+  return (
+    <CopilotGate>
+      <RouterProvider router={router} />
+    </CopilotGate>
+  )
 }

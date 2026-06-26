@@ -12,24 +12,25 @@ export function PageContainer({ title, subtitle, actions, children, noPadding }:
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--bg-base)' }}>
       {/* Header */}
-      <div style={{
+      <div className="responsive-page-header" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 24px',
+        padding: '12px 24px',
         borderBottom: '1px solid var(--border-subtle)',
         background: 'var(--bg-surface)',
-        flexShrink: 0,
+        flexShrink: 0, minHeight: 52,
       }}>
         <div>
-          <h1 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{title}</h1>
-          {subtitle && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{subtitle}</p>}
+          <h1 style={{ fontSize: 16, lineHeight: 1.2, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{title}</h1>
+          {subtitle && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{subtitle}</p>}
         </div>
         {actions && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{actions}</div>}
       </div>
 
       {/* Content */}
-      <div style={{
+      <div className={noPadding ? undefined : 'responsive-page-body'} style={{
         flex: 1,
         overflowY: noPadding ? 'hidden' : 'auto',
+        overflowX: 'hidden',
         ...(noPadding ? {} : { padding: '24px' }),
       }}>
         {children}

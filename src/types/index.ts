@@ -48,17 +48,24 @@ export type ShootingFormat =
   | 'talking'
   | 'demo'
   | 'talking_demo'
+  | 'walking_shot'
+  | 'electronic_whiteboard'
+  | 'whiteboard'
 
 export const SHOOTING_FORMAT_LABELS: Record<ShootingFormat, string> = {
-  landscape:    '横屏',
-  portrait:     '竖屏',
-  talking:      '口播',
-  demo:         '演示',
-  talking_demo: '口播+演示',
+  landscape:            '横屏',
+  portrait:             '竖屏',
+  talking:              '口播',
+  demo:                 '演示',
+  talking_demo:         '口播+演示',
+  walking_shot:         '走拍',
+  electronic_whiteboard: '电子白板',
+  whiteboard:           '白板',
 }
 
 export const ALL_SHOOTING_FORMATS: ShootingFormat[] = [
   'landscape', 'portrait', 'talking', 'demo', 'talking_demo',
+  'walking_shot', 'electronic_whiteboard', 'whiteboard',
 ]
 
 export interface StatusHistoryEntry {
@@ -72,6 +79,8 @@ export interface Video {
   status: VideoStatus
   tagIds: string[]
   shootingFormats?: ShootingFormat[]
+  isCommercial?: boolean
+  commercialAmount?: number
   scriptId?: string
   topicId?: string
   statusHistory: StatusHistoryEntry[]
@@ -141,6 +150,8 @@ export interface AppSettings {
   defaultPlatforms: Platform[]
   violationReasons: string[]
   skipReasons: string[]
+  hidePromotionCost?: boolean
+  hideCommercialAmount?: boolean
 }
 
 // 抖音作品原始数据（直接从抖音后台导出）
@@ -266,47 +277,4 @@ export const PLATFORM_STATUS_COLORS: Record<PlatformPublishStatus, string> = {
   published: '#10B981',
   violated: '#EF4444',
   skipped: '#9CA3AF',
-}
-
-// ══════════════════════════════════════════════
-// Content Risk Detection
-// ══════════════════════════════════════════════
-
-export type RiskLevel = 'critical' | 'high' | 'medium' | 'low'
-
-/** AI 返回的原始风险发现（不含位置信息） */
-export interface RawRiskFinding {
-  rule: string
-  level: RiskLevel
-  evidence: string
-  message: string
-  suggestion: string
-}
-
-/** 前端使用的风险发现（含位置信息和 ID） */
-export interface RiskFinding extends RawRiskFinding {
-  id: string
-  start: number    // 在全文中的字符偏移
-  end: number
-}
-
-export const RISK_LEVEL_LABELS: Record<RiskLevel, string> = {
-  critical: '严重',
-  high: '高',
-  medium: '中',
-  low: '低',
-}
-
-export const RISK_LEVEL_COLORS: Record<RiskLevel, string> = {
-  critical: '#EF4444',
-  high: '#F97316',
-  medium: '#EAB308',
-  low: '#3B82F6',
-}
-
-export const RISK_LEVEL_ORDER: Record<RiskLevel, number> = {
-  critical: 0,
-  high: 1,
-  medium: 2,
-  low: 3,
 }

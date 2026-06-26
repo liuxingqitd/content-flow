@@ -53,14 +53,14 @@ export function Sidebar() {
       }}
     >
       {/* Logo */}
-      <div style={{ padding: '18px 16px 14px' }}>
+      <div style={{ padding: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 8,
-            background: 'linear-gradient(135deg, #7c58ed 0%, #a78bfa 100%)',
+            background: 'linear-gradient(135deg, var(--accent) 0%, #a78bfa 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
-            boxShadow: '0 2px 8px rgba(124,88,237,0.35)',
+            boxShadow: '0 0 20px rgba(124,92,252,0.25)',
           }}>
             <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
               <polygon points="3,2 13,7.5 3,13" fill="white" opacity="0.95"/>
@@ -89,7 +89,7 @@ export function Sidebar() {
       <div style={{ height: 1, background: 'var(--border-subtle)', margin: '0 12px', flexShrink: 0 }} />
 
       {/* Nav */}
-      <nav style={{ flex: 1, padding: '8px 8px', overflowY: 'auto' }}>
+      <nav style={{ flex: 1, padding: 8, overflowY: 'auto' }}>
         {NAV.map(item => (
           <NavLink
             key={item.path}
@@ -105,7 +105,7 @@ export function Sidebar() {
               color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
               background: isActive ? 'var(--accent-subtle)' : 'transparent',
               textDecoration: 'none',
-              transition: 'background .12s, color .12s',
+              transition: 'background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out)',
               marginBottom: 1,
               letterSpacing: '-0.01em',
             })}
@@ -130,7 +130,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div style={{
-        padding: '8px 8px 10px',
+        padding: '8px 8px 12px',
         borderTop: '1px solid var(--border-subtle)',
         flexShrink: 0,
       }}>
@@ -142,7 +142,7 @@ export function Sidebar() {
             fontSize: 13, fontWeight: 420, letterSpacing: '-0.01em',
             color: 'var(--text-secondary)',
             background: 'transparent', border: 'none', cursor: 'pointer',
-            transition: 'background .12s, color .12s',
+            transition: 'background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out)',
           }}
           onMouseEnter={e => {
             const el = e.currentTarget as HTMLButtonElement
@@ -174,7 +174,7 @@ export function Sidebar() {
             color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
             background: isActive ? 'var(--accent-subtle)' : 'transparent',
             textDecoration: 'none',
-            transition: 'background .12s, color .12s',
+            transition: 'background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out)',
           })}
           onMouseEnter={e => {
             const el = e.currentTarget as HTMLAnchorElement

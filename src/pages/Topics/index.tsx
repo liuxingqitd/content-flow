@@ -11,10 +11,10 @@ import { TOPIC_STATUS_LABELS, VIDEO_STATUS_LABELS } from '@/types'
 import { fromNow } from '@/utils/date'
 
 const STATUS_COLORS: Record<TopicStatus, string> = {
-  inspiration: 'var(--status-topic-text)',
+  inspiration: 'var(--status-topic, var(--status-topic-text))',
   adopted:     'var(--accent)',
-  in_progress: 'var(--accent-secondary)',
-  done:        'var(--status-published-text)',
+  in_progress: 'var(--status-scripting, var(--status-scripting-text))',
+  done:        'var(--status-published, var(--status-published-text))',
 }
 
 const STATUS_BG: Record<TopicStatus, string> = {
@@ -25,10 +25,10 @@ const STATUS_BG: Record<TopicStatus, string> = {
 }
 
 const STATUS_BORDER: Record<TopicStatus, string> = {
-  inspiration: 'var(--status-topic-border)',
-  adopted:     'var(--accent-light)',
-  in_progress: 'var(--status-scripting-border)',
-  done:        'var(--status-published-border)',
+  inspiration: 'var(--border-default)',
+  adopted:     'var(--border-focus, var(--accent-light))',
+  in_progress: 'var(--border-default)',
+  done:        'var(--border-default)',
 }
 
 export function Topics() {
@@ -163,14 +163,19 @@ export function Topics() {
       }
     >
       {/* Status filter */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 20, flexWrap: 'wrap' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 2, marginBottom: 16, flexWrap: 'wrap',
+        width: 'fit-content', maxWidth: '100%', padding: 3,
+        borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)',
+        background: 'var(--bg-surface)',
+      }}>
         <button
           onClick={() => setFilterStatus('all')}
           style={{
             padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
             border: 'none', cursor: 'pointer',
-            background: filterStatus === 'all' ? 'var(--accent)' : 'transparent',
-            color: filterStatus === 'all' ? '#fff' : 'var(--text-secondary)',
+            background: filterStatus === 'all' ? 'var(--accent-subtle)' : 'transparent',
+            color: filterStatus === 'all' ? 'var(--accent)' : 'var(--text-secondary)',
           }}
           onMouseEnter={e => { if (filterStatus !== 'all') (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
           onMouseLeave={e => { if (filterStatus !== 'all') (e.currentTarget as HTMLElement).style.background = 'transparent' }}
@@ -187,8 +192,8 @@ export function Topics() {
               style={{
                 padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
                 border: 'none', cursor: 'pointer', transition: 'background .1s',
-                background: active ? STATUS_COLORS[s] : 'transparent',
-                color: active ? '#fff' : 'var(--text-secondary)',
+                background: active ? STATUS_BG[s] : 'transparent',
+                color: active ? STATUS_COLORS[s] : 'var(--text-secondary)',
               }}
               onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
               onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
@@ -205,7 +210,7 @@ export function Topics() {
           action={<Button variant="primary" size="sm" onClick={openNew}>新建灵感</Button>}
         />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 8 }}>
           {filtered.map(topic => {
             const existingScript = scripts.find(s => s.topicId === topic.id)
             const isInspiration = topic.status === 'inspiration'
@@ -222,7 +227,7 @@ export function Topics() {
                   borderRadius: 'var(--radius-lg)',
                   border: '1px solid var(--border-subtle)',
                   background: 'var(--bg-surface)',
-                  padding: 16,
+                  padding: 14,
                   cursor: 'pointer',
                   transition: 'border-color .12s, box-shadow .12s',
                   position: 'relative',
@@ -238,10 +243,10 @@ export function Topics() {
                   el.style.boxShadow = 'none'
                 }}
               >
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4, marginBottom: 8, letterSpacing: '-0.01em' }}>{topic.title}</h3>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4, marginBottom: 6, letterSpacing: '-0.01em' }}>{topic.title}</h3>
 
                 {topic.description && (
-                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{topic.description}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{topic.description}</p>
                 )}
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -263,7 +268,7 @@ export function Topics() {
                         onClick={e => { e.stopPropagation(); navigate('/kanban') }}
                         style={{
                           fontSize: 10, padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                          background: 'var(--status-scripting-bg)', color: 'var(--status-scripting-text)',
+                          background: 'var(--status-scripting-bg)', color: 'var(--status-scripting, var(--status-scripting-text))',
                           fontWeight: 500, transition: 'opacity .1s',
                         }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
@@ -278,7 +283,7 @@ export function Topics() {
                         onClick={e => { e.stopPropagation(); linkTopicToVideo(topic.id, linkedVideo!.id) }}
                         style={{
                           fontSize: 10, padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                          background: 'var(--status-published-bg)', color: 'var(--status-published-text)',
+                          background: 'var(--status-published-bg)', color: 'var(--status-published, var(--status-published-text))',
                           fontWeight: 600, transition: 'opacity .1s',
                         }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
@@ -293,7 +298,7 @@ export function Topics() {
                         onClick={e => openLinkVideoModal(e, topic)}
                         style={{
                           fontSize: 10, padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                          background: 'var(--status-review-bg)', color: 'var(--status-review-text)',
+                          background: 'var(--status-review-bg)', color: 'var(--status-review, var(--status-review-text))',
                           fontWeight: 600, transition: 'opacity .1s',
                         }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
@@ -307,8 +312,8 @@ export function Topics() {
                       onClick={e => { e.stopPropagation(); handleWriteScript(topic) }}
                       style={{
                         fontSize: 10, padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                        background: existingScript ? 'var(--status-published-bg)' : 'var(--bg-elevated)',
-                        color: existingScript ? 'var(--status-published-text)' : 'var(--text-secondary)',
+                        background: existingScript ? 'var(--status-published-bg)' : 'var(--bg-raised, var(--bg-elevated))',
+                        color: existingScript ? 'var(--status-published, var(--status-published-text))' : 'var(--text-secondary)',
                         fontWeight: 500, transition: 'opacity .1s',
                       }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
@@ -322,7 +327,7 @@ export function Topics() {
                         title="关联已有逐字稿"
                         style={{
                           fontSize: 10, padding: '2px 6px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                          background: 'var(--bg-elevated)', color: 'var(--text-tertiary)', transition: 'opacity .1s',
+                          background: 'var(--bg-raised, var(--bg-elevated))', color: 'var(--text-tertiary)', transition: 'opacity .1s',
                         }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
@@ -339,7 +344,7 @@ export function Topics() {
                           background: 'var(--accent-subtle)', color: 'var(--accent)',
                           fontWeight: 600, transition: 'background .1s',
                         }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-soft, var(--accent-light))' }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-subtle)' }}
                       >
                         ✓ 采纳
@@ -403,7 +408,7 @@ export function Topics() {
                   padding: '10px 12px', borderRadius: 'var(--radius-md)',
                   border: '1px solid',
                   borderColor: linkVideoId === v.id ? 'var(--accent)' : 'var(--border-subtle)',
-                  background: linkVideoId === v.id ? 'var(--accent-subtle)' : 'var(--bg-surface)',
+                  background: linkVideoId === v.id ? 'var(--accent-subtle)' : 'var(--bg-raised, var(--bg-elevated))',
                   cursor: 'pointer', textAlign: 'left', transition: 'all .1s',
                 }}
               >
@@ -445,7 +450,7 @@ export function Topics() {
                   padding: '10px 12px', borderRadius: 'var(--radius-md)',
                   border: '1px solid',
                   borderColor: linkScriptId === s.id ? 'var(--accent)' : 'var(--border-subtle)',
-                  background: linkScriptId === s.id ? 'var(--accent-subtle)' : 'var(--bg-surface)',
+                  background: linkScriptId === s.id ? 'var(--accent-subtle)' : 'var(--bg-raised, var(--bg-elevated))',
                   cursor: 'pointer', textAlign: 'left', transition: 'all .1s',
                 }}
               >

@@ -8,14 +8,10 @@ import { Input } from '@/components/ui/Input'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
 import { ScriptEditor } from './ScriptEditor'
-import { ScriptRiskPanel } from '@/components/ScriptRiskPanel'
-import type { Script, RiskFinding, RawRiskFinding } from '@/types'
+import type { Script } from '@/types'
 import { fromNow, formatDate } from '@/utils/date'
 import { formatDuration } from '@/utils/date'
 import { readScriptContent, writeScriptContent, deleteScriptFile } from '@/services/fileSystem'
-import { detectRisk } from '@/services/riskDetectApi'
-import { genId } from '@/utils/id'
-
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
 
 export function Scripts() {
@@ -40,17 +36,6 @@ export function Scripts() {
   const [newTitle, setNewTitle] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')
-
-  // 风险检测
-  const [findings, setFindings] = useState<RiskFinding[]>([])
-  const [highlightedFindingId, setHighlightedFindingId] = useState<string | null>(null)
-  const [dismissedFindingIds, setDismissedFindingIds] = useState<Set<string>>(new Set())
-  const [detectionStale, setDetectionStale] = useState(false)
-  const [detecting, setDetecting] = useState(false)
-  const [detectError, setDetectError] = useState<string | null>(null)
-  const [detectionDone, setDetectionDone] = useState(false)
-  // 记录检测时使用的内容快照（用于判断内容是否变更）
-  const detectionSnapshotRef = useRef('')
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -130,93 +115,6 @@ export function Scripts() {
     setCopyState('copied')
     setTimeout(() => setCopyState('idle'), 1500)
   }, [editorContent])
-
-  // ── 风险检测 ──
-  const handleDetect = useCallback(async () => {
-    if (!editorContent.trim()) return
-    setDetecting(true)
-    setDetectError(null)
-    setDetectionDone(false)
-    try {
-      const rawResults = await detectRisk(editorContent) as RawRiskFinding[]
-      if (!Array.isArray(rawResults)) return
-      const results: RiskFinding[] = rawResults.map(f => {
-        const start = f.evidence ? editorContent.indexOf(f.evidence) : -1
-        return {
-          ...f,
-          id: genId('risk'),
-          start: start >= 0 ? start : 0,
-          end: start >= 0 ? start + f.evidence.length : 0,
-        }
-      })
-      setFindings(results)
-      setDismissedFindingIds(new Set())
-      setDetectionStale(false)
-      setDetectionDone(true)
-      detectionSnapshotRef.current = editorContent
-      if (results.length > 0) {
-        setHighlightedFindingId(results[0].id)
-      }
-    } catch (err) {
-      setDetectError(err instanceof Error ? err.message : '检测失败')
-    } finally {
-      setDetecting(false)
-    }
-  }, [editorContent])
-
-  const handleFindingClick = useCallback((finding: RiskFinding) => {
-    setHighlightedFindingId(finding.id)
-  }, [])
-
-  const handleDismissRisk = useCallback((id: string) => {
-    setDismissedFindingIds(prev => {
-      const next = new Set(prev)
-      next.add(id)
-      return next
-    })
-    setHighlightedFindingId(prev => prev === id ? null : prev)
-  }, [])
-
-  const handleRedetect = useCallback(() => {
-    setDetectionStale(false)
-    handleDetect()
-  }, [handleDetect])
-
-  // 内容变更时标记检测结果过期
-  const handleContentChangeWithDetection = useCallback((content: string) => {
-    handleContentChange(content)
-    if (findings.length > 0 && content !== detectionSnapshotRef.current) {
-      setDetectionStale(true)
-    }
-    if (content !== detectionSnapshotRef.current) {
-      setDetectionDone(false)
-    }
-  }, [handleContentChange, findings.length])
-
-  // 当选中的 script 变化时清除检测结果
-  useEffect(() => {
-    setFindings([])
-    setHighlightedFindingId(null)
-    setDismissedFindingIds(new Set())
-    setDetectionStale(false)
-    setDetectionDone(false)
-    detectionSnapshotRef.current = ''
-  }, [selectedId])
-
-  // 检测通过提示 5 秒后自动消失
-  useEffect(() => {
-    if (!detectionDone || findings.length > 0) return
-    const t = setTimeout(() => setDetectionDone(false), 5000)
-    return () => clearTimeout(t)
-  }, [detectionDone, findings.length])
-
-  // 计算当前高亮范围
-  const activeFinding = highlightedFindingId
-    ? findings.find(f => f.id === highlightedFindingId)
-    : null
-  const highlightRange = activeFinding
-    ? { start: activeFinding.start, end: activeFinding.end }
-    : null
 
   // Cmd+S 立即保存，不等防抖
   const handleForceSave = useCallback(() => {
@@ -314,18 +212,19 @@ export function Scripts() {
         </Button>
       }
     >
-      <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: 'var(--bg-base)' }}>
         {/* Left: list */}
         <div style={{
-          width: 288, flexShrink: 0, display: 'flex', flexDirection: 'column',
+          width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
           borderRight: '1px solid var(--border-subtle)',
           background: 'var(--bg-surface)',
         }}>
-          <div style={{ padding: 12, borderBottom: '1px solid var(--border-subtle)' }}>
+          <div style={{ padding: 12, borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
             <Input
               placeholder="搜索稿件…"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
+              style={{ background: 'var(--bg-raised)' }}
             />
           </div>
 
@@ -346,18 +245,18 @@ export function Scripts() {
                     onClick={() => handleSelect(script)}
                     style={{
                       position: 'relative',
-                      padding: '12px 16px',
+                      padding: '11px 14px 10px',
                       cursor: 'pointer',
-                      borderBottom: '1px solid var(--border-subtle)',
+                      borderBottom: '1px solid var(--border-faint)',
                       borderLeft: isSelected ? '2px solid var(--accent)' : '2px solid transparent',
                       background: isSelected ? 'var(--accent-subtle)' : 'transparent',
-                      transition: 'background .1s',
+                      transition: 'background var(--duration-fast) var(--ease-out)',
                     }}
-                    onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)' }}
+                    onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
                     onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                     className="group"
                   >
-                    <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>
+                    <p style={{ fontSize: 13, fontWeight: 550, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4, letterSpacing: '-0.01em' }}>
                       {script.title}
                     </p>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-tertiary)' }}>
@@ -377,13 +276,13 @@ export function Scripts() {
                         </>
                       )}
                     </div>
-                    <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>{fromNow(script.updatedAt)}</p>
+                    <p style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 3 }}>{fromNow(script.updatedAt)}</p>
 
                     <button
                       onClick={e => { e.stopPropagation(); setDeleteConfirm(script.id) }}
                       style={{
-                        position: 'absolute', right: 10, top: 10,
-                        opacity: 0, padding: 4, borderRadius: 4, border: 'none',
+                        position: 'absolute', right: 8, top: 8,
+                        opacity: 0, padding: 5, borderRadius: 'var(--radius-sm)', border: 'none',
                         background: 'transparent', cursor: 'pointer',
                         color: 'var(--text-tertiary)', transition: 'opacity .1s, background .1s',
                       }}
@@ -403,12 +302,12 @@ export function Scripts() {
         </div>
 
         {/* Right: editor */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {selectedScript ? (
             <>
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '10px 20px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0,
+                minHeight: 58, padding: '8px 16px 8px 20px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0,
                 background: 'var(--bg-surface)',
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -423,18 +322,19 @@ export function Scripts() {
                         if (e.key === 'Escape') { setTitleValue(selectedScript.title); setEditingTitle(false) }
                       }}
                       style={{
-                        width: '100%', fontSize: 16, fontWeight: 600,
-                        background: 'transparent', border: 'none',
-                        borderBottom: '2px solid var(--accent)',
+                        width: '100%', fontSize: 15, fontWeight: 600,
+                        background: 'var(--bg-raised)', border: '1px solid var(--accent)',
+                        borderRadius: 'var(--radius-sm)',
                         color: 'var(--text-primary)', outline: 'none',
-                        fontFamily: 'inherit', padding: '2px 0',
+                        fontFamily: 'inherit', padding: '3px 7px',
+                        boxShadow: '0 0 0 3px var(--accent-subtle)',
                       }}
                     />
                   ) : (
                     <h2
                       onClick={() => { setTitleValue(selectedScript.title); setEditingTitle(true) }}
                       title="点击编辑标题"
-                      style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', cursor: 'text', transition: 'color .1s', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', cursor: 'text', transition: 'color .1s', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.02em' }}
                       onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--accent)'}
                       onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'}
                     >
@@ -456,71 +356,20 @@ export function Scripts() {
                     </span>
                   )}
 
-                  {/* 检测按钮 */}
-                  <button
-                    onClick={handleDetect}
-                    disabled={!editorContent.trim() || detecting}
-                    title="检测内容合规风险（抖音/小红书/视频号）"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 4,
-                      padding: '4px 10px', borderRadius: 5, border: 'none',
-                      background: findings.length > 0 ? 'var(--accent-subtle)' : 'transparent',
-                      color: findings.length > 0 ? 'var(--accent)' : 'var(--text-tertiary)',
-                      cursor: editorContent.trim() ? 'pointer' : 'not-allowed',
-                      opacity: editorContent.trim() ? 1 : 0.4,
-                      fontSize: 12, fontWeight: findings.length > 0 ? 600 : 400,
-                      transition: 'background .15s, color .15s',
-                      fontFamily: 'inherit',
-                    }}
-                    onMouseEnter={e => {
-                      if (editorContent.trim()) (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'
-                    }}
-                    onMouseLeave={e => {
-                      if (editorContent.trim()) {
-                        (e.currentTarget as HTMLElement).style.background = findings.length > 0 ? 'var(--accent-subtle)' : 'transparent'
-                      }
-                    }}
-                  >
-                    {detecting ? (
-                      <span style={{ width: 12, height: 12, border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', display: 'block' }} />
-                    ) : (
-                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                        <path d="M6.5 1L1.5 11h10L6.5 1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
-                        <path d="M6.5 4.5v2.5M6.5 9v.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                      </svg>
-                    )}
-                    {detecting ? '检测中…' : findings.length > 0 ? `风险 ${findings.length}` : '检测'}
-                  </button>
-
-                  {/* 检测通过提示 */}
-                  {detectionDone && findings.length === 0 && (
-                    <span style={{
-                      fontSize: 12, color: 'var(--success)',
-                      display: 'flex', alignItems: 'center', gap: 3,
-                      animation: 'fadeIn .2s ease-out',
-                    }}>
-                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                        <circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" strokeWidth="1.2"/>
-                        <path d="M4 6.5l2 2 3-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      未发现风险
-                    </span>
-                  )}
-
                   <button
                     onClick={handleCopy}
                     disabled={!editorContent}
                     title="复制全文"
                     style={{
                       display: 'flex', alignItems: 'center', gap: 4,
-                      padding: '4px 8px', borderRadius: 5, border: 'none',
+                      padding: '5px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)',
                       background: copyState === 'copied' ? 'rgba(52,211,153,0.12)' : 'transparent',
                       color: copyState === 'copied' ? 'var(--success)' : 'var(--text-tertiary)',
                       cursor: editorContent ? 'pointer' : 'not-allowed',
                       opacity: editorContent ? 1 : 0.4,
                       fontSize: 12, transition: 'background .15s, color .15s',
                     }}
-                    onMouseEnter={e => { if (editorContent && copyState === 'idle') (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)' }}
+                    onMouseEnter={e => { if (editorContent && copyState === 'idle') (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
                     onMouseLeave={e => { if (copyState === 'idle') (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                   >
                     {copyState === 'copied' ? (
@@ -543,40 +392,12 @@ export function Scripts() {
                   <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid var(--accent)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
                 </div>
               ) : (
-                <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+                <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
                   <ScriptEditor
                     key={selectedId}
                     content={editorContent}
-                    onChange={handleContentChangeWithDetection}
-                    highlightRange={highlightRange}
+                    onChange={handleContentChange}
                   />
-                  {findings.length > 0 && (
-                    <ScriptRiskPanel
-                      findings={findings}
-                      onFindingClick={handleFindingClick}
-                      onDismiss={handleDismissRisk}
-                      onRedetect={handleRedetect}
-                      dismissedIds={dismissedFindingIds}
-                      activeFindingId={highlightedFindingId}
-                      stale={detectionStale}
-                    />
-                  )}
-                  {detectError && (
-                    <div style={{
-                      position: 'absolute', bottom: 12, right: 16,
-                      padding: '6px 12px', borderRadius: 6,
-                      background: 'rgba(248,113,113,0.12)',
-                      color: 'var(--danger)', fontSize: 12,
-                    }}>
-                      {detectError}
-                      <button
-                        onClick={() => setDetectError(null)}
-                        style={{ marginLeft: 8, background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
             </>

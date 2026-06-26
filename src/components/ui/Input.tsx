@@ -3,9 +3,9 @@ import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } fro
 const baseInput: React.CSSProperties = {
   width: '100%', borderRadius: 'var(--radius-md)',
   border: '1px solid var(--border-default)',
-  background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+  background: 'var(--bg-raised)', color: 'var(--text-primary)',
   fontSize: 13, fontFamily: 'inherit', letterSpacing: '-0.01em',
-  outline: 'none', transition: 'border-color .12s, box-shadow .12s',
+  outline: 'none', transition: 'border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out)',
 }
 
 const focusStyle: React.CSSProperties = {

@@ -1,6 +1,20 @@
 import type { AppData, DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord, Script, Video } from '@/types'
 import { defaultAppData } from './defaultData'
 import { nanoid } from 'nanoid'
+import {
+  clearTauriDirectoryHandle,
+  deleteTauriFile,
+  getTauriDirectoryHandle,
+  isTauriDirectoryHandle,
+  listTauriMarkdownFiles,
+  pickTauriDirectory,
+  readTauriBytes,
+  readTauriText,
+  tauriFileSystemAvailable,
+  type TauriDirectoryHandle,
+  writeTauriBytes,
+  writeTauriText,
+} from './tauriFileSystem'
 
 const DOUYIN_SEED: Omit<DouyinRawRecord, 'id' | 'createdAt'>[] = [
   { title: '每天花一小时玩AI，比你报千元课都管用', publishedAt: '2026-05-18 18:49:34', genre: '1-3min视频', status: '公开', plays: 1500, completionRate: 0.031092, fiveSecRate: 0.416063, coverCtr: '-', twoSecBounceRate: 0.347597, avgPlayDuration: 13.551408, likes: 34, shares: 1, comments: 1, saves: 5, profileVisits: 4, followerGain: 4 },
@@ -41,6 +55,8 @@ const IDB_DB = 'ip_content'
 const IDB_STORE = 'handles'
 const HANDLE_KEY = 'rootDir'
 const DEMO_ID_PREFIXES = ['vid_demo', 'script_demo', 'topic_demo']
+
+type DataDirectoryHandle = FileSystemDirectoryHandle | TauriDirectoryHandle
 
 type FileSystemPermissionDescriptor = { mode?: 'read' | 'readwrite' }
 type PermissionDirectoryHandle = FileSystemDirectoryHandle & {
@@ -107,10 +123,15 @@ async function storeHandle(handle: FileSystemDirectoryHandle): Promise<void> {
 
 // ===== Directory handle management =====
 
-let _dirHandle: FileSystemDirectoryHandle | null = null
+let _dirHandle: DataDirectoryHandle | null = null
 
-export async function getDirectoryHandle(): Promise<FileSystemDirectoryHandle | null> {
+export async function getDirectoryHandle(): Promise<DataDirectoryHandle | null> {
   if (_dirHandle) return _dirHandle
+  const tauriHandle = await getTauriDirectoryHandle()
+  if (tauriHandle) {
+    _dirHandle = tauriHandle
+    return _dirHandle
+  }
   const stored = await getStoredHandle()
   if (stored) {
     const permissionHandle = withPermissions(stored)
@@ -130,7 +151,12 @@ export async function getDirectoryHandle(): Promise<FileSystemDirectoryHandle | 
   return null
 }
 
-export async function pickDirectory(): Promise<FileSystemDirectoryHandle> {
+export async function pickDirectory(): Promise<DataDirectoryHandle> {
+  if (tauriFileSystemAvailable()) {
+    const handle = await pickTauriDirectory()
+    _dirHandle = handle
+    return handle
+  }
   const handle = await getDirectoryPickerWindow().showDirectoryPicker({ mode: 'readwrite' })
   await validateDataDirectory(handle)
   _dirHandle = handle
@@ -140,6 +166,10 @@ export async function pickDirectory(): Promise<FileSystemDirectoryHandle> {
 
 export async function clearStoredHandle(): Promise<void> {
   _dirHandle = null
+  if (tauriFileSystemAvailable()) {
+    clearTauriDirectoryHandle()
+    return
+  }
   const db = await openIDB()
   return new Promise((resolve) => {
     const tx = db.transaction(IDB_STORE, 'readwrite')
@@ -188,6 +218,20 @@ async function readJsonFile<T>(dir: FileSystemDirectoryHandle, filename: string,
   }
 }
 
+async function writeTauriJsonFile(dir: TauriDirectoryHandle, filename: string, value: unknown): Promise<void> {
+  await writeTauriText(dir, filename, JSON.stringify(value, null, 2), true)
+}
+
+async function readTauriJsonFile<T>(dir: TauriDirectoryHandle, filename: string, fallback: T): Promise<T> {
+  const text = await readTauriText(dir, filename)
+  if (!text) return fallback
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    return fallback
+  }
+}
+
 async function writeSplitAppData(dir: FileSystemDirectoryHandle, data: AppData): Promise<void> {
   await Promise.all([
     writeSingleFile(dir, 'videos.json', data.videos),
@@ -207,6 +251,26 @@ async function writeSplitAppData(dir: FileSystemDirectoryHandle, data: AppData):
   ])
   // version 文件留存供将来使用
   await writeSingleFile(dir, 'version.json', { version: data.version ?? '1.0' })
+}
+
+async function writeTauriSplitAppData(dir: TauriDirectoryHandle, data: AppData): Promise<void> {
+  await Promise.all([
+    writeTauriJsonFile(dir, 'videos.json', data.videos),
+    writeTauriJsonFile(dir, 'videoRelations.json', data.videoRelations),
+    writeTauriJsonFile(dir, 'topics.json', data.topics),
+    writeTauriJsonFile(dir, 'scripts.json', data.scripts),
+    writeTauriJsonFile(dir, 'metrics.json', data.metrics),
+    writeTauriJsonFile(dir, 'tags.json', data.tags),
+    writeTauriJsonFile(dir, 'checklists.json', {
+      checklistItems: data.checklistItems,
+      transitionChecklists: data.transitionChecklists,
+    }),
+    writeTauriJsonFile(dir, 'settings.json', data.settings),
+    writeTauriJsonFile(dir, 'douyinRecords.json', data.douyinRecords),
+    writeTauriJsonFile(dir, 'shipinhaoRecords.json', data.shipinhaoRecords),
+    writeTauriJsonFile(dir, 'xiaohongshuRecords.json', data.xiaohongshuRecords),
+  ])
+  await writeTauriJsonFile(dir, 'version.json', { version: data.version ?? '1.0' })
 }
 
 async function readSplitAppData(dir: FileSystemDirectoryHandle): Promise<AppData> {
@@ -229,6 +293,45 @@ async function readSplitAppData(dir: FileSystemDirectoryHandle): Promise<AppData
     readJsonFile(dir, 'shipinhaoRecords.json', [] as AppData['shipinhaoRecords']),
     readJsonFile(dir, 'xiaohongshuRecords.json', [] as AppData['xiaohongshuRecords']),
     readJsonFile(dir, 'version.json', { version: defaults.version }),
+  ])
+
+  return {
+    version: versionData.version ?? defaults.version,
+    videos,
+    videoRelations,
+    topics,
+    scripts,
+    metrics,
+    tags,
+    checklistItems: checklists.checklistItems ?? defaults.checklistItems,
+    transitionChecklists: checklists.transitionChecklists ?? defaults.transitionChecklists,
+    settings,
+    douyinRecords,
+    shipinhaoRecords,
+    xiaohongshuRecords,
+  }
+}
+
+async function readTauriSplitAppData(dir: TauriDirectoryHandle): Promise<AppData> {
+  const defaults = defaultAppData()
+  const [
+    videos, videoRelations, topics, scripts, metrics, tags, checklists, settings, douyinRecords, shipinhaoRecords, xiaohongshuRecords, versionData,
+  ] = await Promise.all([
+    readTauriJsonFile(dir, 'videos.json', [] as AppData['videos']),
+    readTauriJsonFile(dir, 'videoRelations.json', [] as AppData['videoRelations']),
+    readTauriJsonFile(dir, 'topics.json', [] as AppData['topics']),
+    readTauriJsonFile(dir, 'scripts.json', [] as AppData['scripts']),
+    readTauriJsonFile(dir, 'metrics.json', [] as AppData['metrics']),
+    readTauriJsonFile(dir, 'tags.json', defaults.tags),
+    readTauriJsonFile(dir, 'checklists.json', {
+      checklistItems: defaults.checklistItems,
+      transitionChecklists: defaults.transitionChecklists,
+    }),
+    readTauriJsonFile(dir, 'settings.json', defaults.settings),
+    readTauriJsonFile(dir, 'douyinRecords.json', [] as AppData['douyinRecords']),
+    readTauriJsonFile(dir, 'shipinhaoRecords.json', [] as AppData['shipinhaoRecords']),
+    readTauriJsonFile(dir, 'xiaohongshuRecords.json', [] as AppData['xiaohongshuRecords']),
+    readTauriJsonFile(dir, 'version.json', { version: defaults.version }),
   ])
 
   return {
@@ -285,11 +388,29 @@ async function migrateToSplitFormat(dir: FileSystemDirectoryHandle): Promise<voi
   try { await asIterableDirectory(dir).removeEntry('data.json') } catch { /* ignore */ }
 }
 
+async function migrateTauriToSplitFormat(dir: TauriDirectoryHandle): Promise<void> {
+  const videos = await readTauriText(dir, 'videos.json')
+  if (videos) return
+
+  const oldText = await readTauriText(dir, 'data.json')
+  if (!oldText) return
+
+  const oldData = JSON.parse(oldText) as AppData
+  const migratedData = { ...oldData, videoRelations: oldData.videoRelations ?? [] }
+  await writeTauriSplitAppData(dir, migratedData)
+  await writeTauriText(dir, 'data.json.bak', oldText)
+  await deleteTauriFile(dir, 'data.json')
+}
+
 // ===== data.json read / write（对外接口保持不变） =====
 
 export async function readAppData(): Promise<AppData> {
   const dir = await getDirectoryHandle()
   if (!dir) throw new Error('NO_DIRECTORY')
+
+  if (isTauriDirectoryHandle(dir)) {
+    return readTauriAppData(dir)
+  }
 
   // 一次性迁移：旧 data.json → 多文件
   try {
@@ -392,8 +513,126 @@ export async function readAppData(): Promise<AppData> {
     data.settings.skipReasons = ['该平台不适合此类内容', '本期跳过发布']
     changed = true
   }
+  if (data.settings.hidePromotionCost === undefined) {
+    data.settings.hidePromotionCost = false
+    changed = true
+  }
+  if (data.settings.hideCommercialAmount === undefined) {
+    data.settings.hideCommercialAmount = false
+    changed = true
+  }
 
   const recovered = await recoverDemoIndexFromMarkdown(dir, data)
+  if (recovered) {
+    data = recovered
+    changed = true
+  }
+
+  if (changed) await writeAppData(data)
+  return data
+}
+
+async function readTauriAppData(dir: TauriDirectoryHandle): Promise<AppData> {
+  try {
+    await migrateTauriToSplitFormat(dir)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    throw new Error(`MIGRATE_FAILED: ${msg}`, { cause: e })
+  }
+
+  let data: AppData
+  try {
+    data = await readTauriSplitAppData(dir)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    throw new Error(`READ_DATA_FAILED: ${msg}`, { cause: e })
+  }
+
+  const isEmpty = data.videos.length === 0 && data.scripts.length === 0 && data.topics.length === 0
+  if (isEmpty) {
+    const imported = await buildInitialDataFromTauriDirectory(dir)
+    if (imported.videos.length > 0) {
+      data = { ...data, videos: imported.videos, videoRelations: data.videoRelations ?? [], scripts: imported.scripts }
+      await writeAppData(data)
+      return data
+    }
+  }
+
+  let changed = false
+
+  if (!data.videoRelations) {
+    data.videoRelations = []
+    changed = true
+  }
+  if (data.metrics?.some(m => m.videoId === 'vid_demo01')) {
+    data.metrics = data.metrics.filter(m => m.videoId !== 'vid_demo01')
+    changed = true
+  }
+  if (!data.checklistItems) {
+    data.checklistItems = defaultAppData().checklistItems
+    changed = true
+  }
+  if (!data.transitionChecklists) {
+    data.transitionChecklists = defaultAppData().transitionChecklists
+    changed = true
+  }
+  {
+    const defaults = defaultAppData().transitionChecklists
+    const keys = Object.keys(defaults) as (keyof typeof defaults)[]
+    for (const key of keys) {
+      if (!data.transitionChecklists[key]) {
+        data.transitionChecklists[key] = defaults[key]
+        changed = true
+      }
+    }
+  }
+  if (!data.douyinRecords) {
+    const now2 = new Date().toISOString()
+    data.douyinRecords = DOUYIN_SEED.map(r => ({ ...r, id: nanoid(), createdAt: now2 }))
+    changed = true
+  }
+  if (!data.shipinhaoRecords) {
+    const now2 = new Date().toISOString()
+    data.shipinhaoRecords = SHIPINHAO_SEED.map(r => ({ ...r, id: nanoid(), createdAt: now2 }))
+    changed = true
+  }
+  if (!data.xiaohongshuRecords || data.xiaohongshuRecords.length === 0) {
+    const now2 = new Date().toISOString()
+    data.xiaohongshuRecords = XIAOHONGSHU_SEED.map(r => ({ ...r, id: nanoid(), createdAt: now2 }))
+    changed = true
+  }
+
+  const topicStatusMap: Record<string, string> = {
+    idea: 'inspiration',
+    approved: 'adopted',
+    rejected: 'inspiration',
+  }
+  const needsTopicMigration = data.topics?.some(t => t.status in topicStatusMap)
+  if (needsTopicMigration) {
+    data.topics = data.topics.map(t => ({
+      ...t,
+      status: (topicStatusMap[t.status] ?? t.status) as typeof t.status,
+    }))
+    changed = true
+  }
+  if (!data.settings.violationReasons) {
+    data.settings.violationReasons = ['违反社区公约', '涉嫌第三方导流']
+    changed = true
+  }
+  if (!data.settings.skipReasons) {
+    data.settings.skipReasons = ['该平台不适合此类内容', '本期跳过发布']
+    changed = true
+  }
+  if (data.settings.hidePromotionCost === undefined) {
+    data.settings.hidePromotionCost = false
+    changed = true
+  }
+  if (data.settings.hideCommercialAmount === undefined) {
+    data.settings.hideCommercialAmount = false
+    changed = true
+  }
+
+  const recovered = await recoverDemoIndexFromTauriMarkdown(dir, data)
   if (recovered) {
     data = recovered
     changed = true
@@ -410,6 +649,18 @@ function isNotFoundError(e: unknown): boolean {
 async function buildInitialDataFromDirectory(dir: FileSystemDirectoryHandle): Promise<AppData> {
   const data = emptyAppData()
   const imported = await importMarkdownScripts(dir)
+  if (!imported) return data
+  return {
+    ...data,
+    videos: imported.videos,
+    topics: [],
+    scripts: imported.scripts,
+  }
+}
+
+async function buildInitialDataFromTauriDirectory(dir: TauriDirectoryHandle): Promise<AppData> {
+  const data = emptyAppData()
+  const imported = await importTauriMarkdownScripts(dir)
   if (!imported) return data
   return {
     ...data,
@@ -436,6 +687,23 @@ async function recoverDemoIndexFromMarkdown(
 ): Promise<AppData | null> {
   if (!isDemoIndex(data)) return null
   const imported = await importMarkdownScripts(dir)
+  if (!imported) return null
+  return {
+    ...data,
+    videos: imported.videos,
+    videoRelations: data.videoRelations ?? [],
+    topics: data.topics.filter(t => !DEMO_ID_PREFIXES.some(prefix => t.id.startsWith(prefix))),
+    scripts: imported.scripts,
+    metrics: data.metrics.filter(m => !m.videoId.startsWith('vid_demo')),
+  }
+}
+
+async function recoverDemoIndexFromTauriMarkdown(
+  dir: TauriDirectoryHandle,
+  data: AppData,
+): Promise<AppData | null> {
+  if (!isDemoIndex(data)) return null
+  const imported = await importTauriMarkdownScripts(dir)
   if (!imported) return null
   return {
     ...data,
@@ -519,6 +787,61 @@ async function importMarkdownScripts(
   }
 }
 
+async function importTauriMarkdownScripts(
+  dir: TauriDirectoryHandle,
+): Promise<{ scripts: Script[]; videos: Video[] } | null> {
+  const files = await listTauriMarkdownFiles(dir, 'scripts')
+  const scripts: Script[] = []
+  const videos: Video[] = []
+  const nowIso = new Date().toISOString()
+
+  for (const file of files) {
+    if (!file.name.endsWith('.md')) continue
+    const id = file.name.replace(/\.md$/, '')
+    if (id.startsWith('script_demo')) continue
+    const content = file.content
+    const title = extractMarkdownTitle(content, id)
+    const wordCount = countScriptWords(content)
+    const videoIdForScript = `vid_${id.replace(/^script_/, '')}`
+    const timestamp = Number(file.updated_at)
+    const createdAt = timestamp > 0 ? new Date(timestamp).toISOString() : nowIso
+
+    scripts.push({
+      id,
+      videoId: videoIdForScript,
+      title,
+      wordCount,
+      estimatedDuration: Math.max(1, Math.round(wordCount / 3.5)),
+      tagIds: [],
+      version: 1,
+      createdAt,
+      updatedAt: createdAt,
+    })
+    videos.push({
+      id: videoIdForScript,
+      title,
+      status: 'scripting',
+      tagIds: [],
+      scriptId: id,
+      statusHistory: [{ status: 'scripting', changedAt: createdAt }],
+      platforms: [],
+      createdAt,
+      updatedAt: createdAt,
+    })
+  }
+
+  if (scripts.length === 0) return null
+
+  const orderedIndexes = scripts
+    .map((script, index) => ({ script, video: videos[index] }))
+    .sort((a, b) => b.script.updatedAt.localeCompare(a.script.updatedAt))
+
+  return {
+    scripts: orderedIndexes.map(item => item.script),
+    videos: orderedIndexes.map(item => item.video),
+  }
+}
+
 function extractMarkdownTitle(content: string, fallback: string): string {
   const heading = content.match(/^#\s+(.+)$/m)?.[1]?.trim()
   if (heading) return heading
@@ -532,6 +855,10 @@ function extractMarkdownTitle(content: string, fallback: string): string {
 
 function countScriptWords(content: string): number {
   return content.replace(/\s+/g, '').length
+}
+
+function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
 }
 
 async function validateDataDirectory(dir: FileSystemDirectoryHandle): Promise<void> {
@@ -563,6 +890,10 @@ async function hasMarkdownFiles(dir: FileSystemDirectoryHandle): Promise<boolean
 export async function writeAppData(data: AppData): Promise<void> {
   const dir = await getDirectoryHandle()
   if (!dir) throw new Error('NO_DIRECTORY')
+  if (isTauriDirectoryHandle(dir)) {
+    await writeTauriSplitAppData(dir, data)
+    return
+  }
   await writeSplitAppData(dir, data)
 }
 
@@ -575,6 +906,9 @@ async function getScriptsDir(dir: FileSystemDirectoryHandle): Promise<FileSystem
 export async function readScriptContent(scriptId: string): Promise<string> {
   const dir = await getDirectoryHandle()
   if (!dir) return ''
+  if (isTauriDirectoryHandle(dir)) {
+    return (await readTauriText(dir, `scripts/${scriptId}.md`)) ?? ''
+  }
   try {
     const scriptsDir = await getScriptsDir(dir)
     const fileHandle = await scriptsDir.getFileHandle(`${scriptId}.md`, { create: false })
@@ -585,9 +919,50 @@ export async function readScriptContent(scriptId: string): Promise<string> {
   }
 }
 
+export interface ScriptMarkdownDocument {
+  scriptId: string
+  content: string
+  updatedAt: string
+}
+
+export async function listScriptMarkdownDocuments(): Promise<ScriptMarkdownDocument[]> {
+  const dir = await getDirectoryHandle()
+  if (!dir) return []
+
+  if (isTauriDirectoryHandle(dir)) {
+    const files = await listTauriMarkdownFiles(dir, 'scripts')
+    return files.map(file => ({
+      scriptId: file.name.replace(/\.md$/, ''),
+      content: file.content,
+      updatedAt: Number(file.updated_at) > 0 ? new Date(Number(file.updated_at)).toISOString() : new Date().toISOString(),
+    }))
+  }
+
+  try {
+    const scriptsDir = await getScriptsDir(dir)
+    const documents: ScriptMarkdownDocument[] = []
+    for await (const handle of asIterableDirectory(scriptsDir).values()) {
+      if (handle.kind !== 'file' || !handle.name.endsWith('.md')) continue
+      const file = await (handle as FileSystemFileHandle).getFile()
+      documents.push({
+        scriptId: handle.name.replace(/\.md$/, ''),
+        content: await file.text(),
+        updatedAt: new Date(file.lastModified).toISOString(),
+      })
+    }
+    return documents
+  } catch {
+    return []
+  }
+}
+
 export async function writeScriptContent(scriptId: string, content: string): Promise<void> {
   const dir = await getDirectoryHandle()
   if (!dir) throw new Error('NO_DIRECTORY')
+  if (isTauriDirectoryHandle(dir)) {
+    await writeTauriText(dir, `scripts/${scriptId}.md`, content)
+    return
+  }
   const scriptsDir = await getScriptsDir(dir)
   const fileHandle = await scriptsDir.getFileHandle(`${scriptId}.md`, { create: true })
   const writable = await asWritableFile(fileHandle).createWritable()
@@ -603,6 +978,10 @@ export async function writeScriptContent(scriptId: string, content: string): Pro
 export async function deleteScriptFile(scriptId: string): Promise<void> {
   const dir = await getDirectoryHandle()
   if (!dir) return
+  if (isTauriDirectoryHandle(dir)) {
+    await deleteTauriFile(dir, `scripts/${scriptId}.md`)
+    return
+  }
   try {
     const scriptsDir = await getScriptsDir(dir)
     await asIterableDirectory(scriptsDir).removeEntry(`${scriptId}.md`)
@@ -626,6 +1005,10 @@ export async function writeCoverImage(
   if (!dir) throw new Error('NO_DIRECTORY')
   const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
   const filename = `${videoId}_${orientation}.${ext}`
+  if (isTauriDirectoryHandle(dir)) {
+    await writeTauriBytes(dir, `covers/${filename}`, new Uint8Array(await file.arrayBuffer()))
+    return ext
+  }
   const coversDir = await getCoversDir(dir)
   const fileHandle = await coversDir.getFileHandle(filename, { create: true })
   const writable = await asWritableFile(fileHandle).createWritable()
@@ -648,6 +1031,12 @@ export async function readCoverImage(
   if (!dir) return null
   try {
     const filename = `${videoId}_${orientation}.${ext}`
+    if (isTauriDirectoryHandle(dir)) {
+      const bytes = await readTauriBytes(dir, `covers/${filename}`)
+      if (!bytes) return null
+      const blob = new Blob([bytesToArrayBuffer(bytes)], { type: `image/${ext === 'jpg' ? 'jpeg' : ext}` })
+      return URL.createObjectURL(blob)
+    }
     const coversDir = await getCoversDir(dir)
     const fileHandle = await coversDir.getFileHandle(filename, { create: false })
     const file = await fileHandle.getFile()
@@ -666,6 +1055,11 @@ export async function readCoverFile(
   if (!dir) return null
   try {
     const filename = `${videoId}_${orientation}.${ext}`
+    if (isTauriDirectoryHandle(dir)) {
+      const bytes = await readTauriBytes(dir, `covers/${filename}`)
+      if (!bytes) return null
+      return new File([bytesToArrayBuffer(bytes)], filename, { type: `image/${ext === 'jpg' ? 'jpeg' : ext}` })
+    }
     const coversDir = await getCoversDir(dir)
     const fileHandle = await coversDir.getFileHandle(filename, { create: false })
     return await fileHandle.getFile()
@@ -683,6 +1077,10 @@ export async function deleteCoverImage(
   if (!dir) return
   try {
     const filename = `${videoId}_${orientation}.${ext}`
+    if (isTauriDirectoryHandle(dir)) {
+      await deleteTauriFile(dir, `covers/${filename}`)
+      return
+    }
     const coversDir = await getCoversDir(dir)
     await asIterableDirectory(coversDir).removeEntry(filename)
   } catch {
@@ -691,6 +1089,6 @@ export async function deleteCoverImage(
 }
 
 export const isFileSystemSupported = (): boolean =>
-  'showDirectoryPicker' in window && window.isSecureContext
+  tauriFileSystemAvailable() || ('showDirectoryPicker' in window && window.isSecureContext)
 
-export const isSecureContext = (): boolean => window.isSecureContext
+export const isSecureContext = (): boolean => tauriFileSystemAvailable() || window.isSecureContext

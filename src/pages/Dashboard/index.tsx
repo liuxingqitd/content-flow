@@ -14,6 +14,8 @@ export function Dashboard() {
   const topics = useAppStore(s => s.data?.topics ?? [])
   const scripts = useAppStore(s => s.data?.scripts ?? [])
   const tags = useAppStore(s => s.data?.tags ?? [])
+  const hidePromotionCost = useAppStore(s => s.data?.settings.hidePromotionCost ?? false)
+  const hideCommercialAmount = useAppStore(s => s.data?.settings.hideCommercialAmount ?? false)
 
   const tooltipStyle = {
     background: 'var(--bg-overlay)',
@@ -61,11 +63,34 @@ export function Dashboard() {
     }, 0)
   }, [videos, currentMonth, currentYear])
 
+  const monthlyCommercialAmount = useMemo(() => {
+    return videos.reduce((total, video) => {
+      const amount = video.isCommercial ? video.commercialAmount ?? 0 : 0
+      if (amount <= 0) return total
+
+      const firstPublishedAt = video.platforms
+        .map(platform => platform.publishedAt)
+        .filter((publishedAt): publishedAt is string => Boolean(publishedAt))
+        .sort((a, b) => a.localeCompare(b))[0]
+      const date = new Date(firstPublishedAt ?? video.createdAt)
+      if (date.getMonth() !== currentMonth || date.getFullYear() !== currentYear) {
+        return total
+      }
+
+      return total + amount
+    }, 0)
+  }, [videos, currentMonth, currentYear])
+
   const formattedMonthlyPromotionCost = new Intl.NumberFormat('zh-CN', {
     style: 'currency',
     currency: 'CNY',
     maximumFractionDigits: 0,
   }).format(monthlyPromotionCost)
+  const formattedMonthlyCommercialAmount = new Intl.NumberFormat('zh-CN', {
+    style: 'currency',
+    currency: 'CNY',
+    maximumFractionDigits: 0,
+  }).format(monthlyCommercialAmount)
 
   const pendingTopics = topics.filter(t => t.status === 'inspiration' || t.status === 'adopted')
 
@@ -96,37 +121,37 @@ export function Dashboard() {
   }, [videos])
 
   const pipelineColors: Record<string, string> = {
-    topic: 'var(--status-topic-text)',
-    scripting: 'var(--status-scripting-text)',
-    review: 'var(--status-review-text)',
-    filming: 'var(--status-filming-text)',
-    editing: 'var(--status-editing-text)',
-    published: 'var(--status-published-text)',
+    topic: 'var(--status-topic, var(--status-topic-text))',
+    scripting: 'var(--status-scripting, var(--status-scripting-text))',
+    review: 'var(--status-review, var(--status-review-text))',
+    filming: 'var(--status-filming, var(--status-filming-text))',
+    editing: 'var(--status-editing, var(--status-editing-text))',
+    published: 'var(--status-published, var(--status-published-text))',
   }
 
   return (
     <PageContainer title="概览" subtitle={`${formatDate(new Date().toISOString())} · ${videos.length} 条视频`}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* In-progress banner */}
         {inProgress.length > 0 && (
           <div style={{
             borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--accent-light)',
+            border: '1px solid var(--border-focus, var(--accent-light))',
             background: 'var(--accent-subtle)',
-            padding: 16,
+            padding: 12,
           }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginBottom: 8, letterSpacing: '0.02em' }}>
               进行中 · {inProgress.length} 条
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {inProgress.map(v => (
                 <div
                   key={v.id}
                   onClick={() => navigate(`/videos/${v.id}`)}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    cursor: 'pointer', padding: '6px 8px', margin: '0 -8px',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    cursor: 'pointer', padding: '5px 8px', margin: '0 -8px',
                     borderRadius: 'var(--radius-sm)',
                     transition: 'background .1s',
                   }}
@@ -143,11 +168,12 @@ export function Dashboard() {
         )}
 
         {/* Stats grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 8 }}>
           {[
             { label: '已发布', value: statusCounts.published, sub: '条视频', accent: true, path: '/videos' },
             { label: '本月新建', value: thisMonth.length, sub: '条视频', accent: false, path: '/kanban' },
-            { label: '本月投放成本', value: formattedMonthlyPromotionCost, sub: '平台投放', accent: false, path: '/videos' },
+            ...(hidePromotionCost ? [] : [{ label: '本月投放成本' as const, value: formattedMonthlyPromotionCost, sub: '平台投放', accent: false, path: '/videos' }]),
+            ...(hideCommercialAmount ? [] : [{ label: '本月商单金额' as const, value: formattedMonthlyCommercialAmount, sub: '合作收入', accent: false, path: '/videos' }]),
             { label: '待处理选题', value: pendingTopics.length, sub: '个想法', accent: false, path: '/topics' },
             { label: '逐字稿', value: scripts.length, sub: '篇稿件', accent: false, path: '/scripts' },
           ].map(stat => (
@@ -158,7 +184,7 @@ export function Dashboard() {
                 borderRadius: 'var(--radius-lg)',
                 border: '1px solid var(--border-subtle)',
                 background: 'var(--bg-surface)',
-                padding: '16px 18px',
+                padding: '12px 14px',
                 textAlign: 'left',
                 cursor: 'pointer',
                 transition: 'border-color .12s, box-shadow .12s',
@@ -174,17 +200,17 @@ export function Dashboard() {
                 el.style.boxShadow = 'none'
               }}
             >
-              <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-tertiary)', marginBottom: 6, letterSpacing: '0.03em' }}>{stat.label}</p>
-              <p style={{ fontSize: 28, fontWeight: 700, color: stat.accent ? 'var(--accent)' : 'var(--text-primary)', lineHeight: 1, letterSpacing: '-0.02em' }}>{stat.value}</p>
-              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>{stat.sub}</p>
+              <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 5 }}>{stat.label}</p>
+              <p style={{ fontSize: 24, fontWeight: 650, color: stat.accent ? 'var(--accent)' : 'var(--text-primary)', lineHeight: 1.1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</p>
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>{stat.sub}</p>
             </button>
           ))}
         </div>
 
         {/* Pipeline */}
-        <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 18 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.06em' }}>内容管道</p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 14 }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10 }}>内容管道</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
             {VIDEO_STATUS_ORDER.filter(s => s !== 'archived').map((s, i, arr) => {
               const count = statusCounts[s]
               const barWidth = Math.max(count > 0 ? (count / Math.max(...Object.values(statusCounts).filter(Boolean), 1)) * 100 : 8, 8)
@@ -194,9 +220,9 @@ export function Dashboard() {
                     onClick={() => navigate('/kanban')}
                     style={{
                       display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                      padding: '8px 12px', borderRadius: 'var(--radius-md)',
+                      padding: '7px 10px', borderRadius: 'var(--radius-md)',
                       border: '1px solid var(--border-subtle)',
-                      background: 'var(--bg-elevated)',
+                      background: 'var(--bg-raised, var(--bg-elevated))',
                       cursor: 'pointer', minWidth: 64,
                       transition: 'border-color .12s',
                     }}
@@ -204,7 +230,7 @@ export function Dashboard() {
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'}
                   >
                     <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>{VIDEO_STATUS_LABELS[s]}</span>
-                    <span style={{ fontSize: 18, fontWeight: 700, color: pipelineColors[s], lineHeight: 1, marginTop: 2 }}>{count}</span>
+                    <span style={{ fontSize: 16, fontWeight: 650, color: pipelineColors[s], lineHeight: 1, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{count}</span>
                     <div style={{
                       height: 2, borderRadius: 99, marginTop: 4,
                       background: pipelineColors[s], opacity: 0.5,
@@ -223,11 +249,11 @@ export function Dashboard() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
           {/* Tag distribution chart */}
-          <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 18 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>内容标签构成</p>
-            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 14 }}>各标签覆盖的视频数量，帮助判断内容方向</p>
+          <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 16 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>内容标签构成</p>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>各标签覆盖的视频数量，帮助判断内容方向</p>
             {tagDistribution.length === 0 ? (
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 0' }}>暂无标签数据</p>
             ) : (
@@ -248,9 +274,9 @@ export function Dashboard() {
           </div>
 
           {/* Shooting format distribution chart */}
-          <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 18 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>拍摄形式分布</p>
-            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 14 }}>各拍摄形式使用频次，辅助判断形式搭配</p>
+          <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 16 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>拍摄形式分布</p>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>各拍摄形式使用频次，辅助判断形式搭配</p>
             {shootingFormatDistribution.length === 0 ? (
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 0' }}>暂无拍摄形式数据</p>
             ) : (
