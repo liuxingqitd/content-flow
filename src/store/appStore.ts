@@ -47,6 +47,7 @@ interface AppState {
 
   // Platform entries
   setPlatformEntry: (videoId: string, platform: Platform, entry: Omit<PlatformPublish, 'platform'> | null) => void
+  updatePlatformPublishedAt: (videoId: string, platform: Platform, publishedAt: string) => void
   updatePromotionCost: (videoId: string, platform: Platform, cost: number | undefined) => void
 
   // Metrics
@@ -622,6 +623,19 @@ export const useAppStore = create<AppState>()(
         if (entry !== null) {
           video.platforms.push({ platform, ...entry })
         }
+        video.updatedAt = now()
+      })
+      scheduleSave(get)
+    },
+
+    updatePlatformPublishedAt: (videoId, platform, publishedAt) => {
+      set(s => {
+        if (!s.data) return
+        const video = s.data.videos.find(v => v.id === videoId)
+        if (!video) return
+        const entry = video.platforms.find(p => p.platform === platform)
+        if (!entry || (entry.status ?? 'published') !== 'published') return
+        entry.publishedAt = publishedAt
         video.updatedAt = now()
       })
       scheduleSave(get)

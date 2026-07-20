@@ -15,7 +15,7 @@ import {
   PLATFORM_STATUS_LABELS, PLATFORM_STATUS_COLORS,
   ALL_SHOOTING_FORMATS, SHOOTING_FORMAT_LABELS,
 } from '@/types'
-import { formatDate, fromNow } from '@/utils/date'
+import { formatDate, fromDateTimeLocalValue, fromNow, toDateTimeLocalValue } from '@/utils/date'
 import { calcEngagement, formatNumber } from '@/utils/format'
 
 export function VideoDetail() {
@@ -36,6 +36,7 @@ export function VideoDetail() {
   const addMetric = useAppStore(s => s.addMetric)
   const deleteMetric = useAppStore(s => s.deleteMetric)
   const setPlatformEntry = useAppStore(s => s.setPlatformEntry)
+  const updatePlatformPublishedAt = useAppStore(s => s.updatePlatformPublishedAt)
   const updatePromotionCost = useAppStore(s => s.updatePromotionCost)
   const updateVideoCover = useAppStore(s => s.updateVideoCover)
   const addVideoRelation = useAppStore(s => s.addVideoRelation)
@@ -638,11 +639,26 @@ export function VideoDetail() {
                       </div>
 
                       {/* Detail row */}
-                      {pub && status === 'published' && pub.publishedAt && (
+                      {pub && status === 'published' && (
                         <div style={{ marginTop: 4 }}>
-                          <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                            {formatDate(pub.publishedAt)}
-                          </p>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-tertiary)' }}>
+                            <span style={{ flexShrink: 0 }}>发布时间</span>
+                            <input
+                              type="datetime-local"
+                              value={pub.publishedAt ? toDateTimeLocalValue(pub.publishedAt) : ''}
+                              onChange={e => {
+                                if (!e.target.value) return
+                                updatePlatformPublishedAt(video.id, platform, fromDateTimeLocalValue(e.target.value))
+                              }}
+                              style={{
+                                width: 154, height: 24, padding: '0 6px', borderRadius: 6, fontSize: 11,
+                                border: '1px solid var(--border-subtle)', background: 'var(--bg-base)',
+                                color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit',
+                              }}
+                              onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+                              onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)' }}
+                            />
+                          </label>
                           {!hidePromotionCost && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6 }}>
                             <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>¥</span>
