@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store/appStore'
 import { writeCoverImage, readCoverImage, readCoverFile, deleteCoverImage } from '@/services/fileSystem'
+import { invalidateCoverThumbnailCache } from '@/services/coverThumbnailCache'
 import { PageContainer } from '@/components/layout/PageContainer'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -76,6 +77,7 @@ export function VideoDetail() {
   const handleCoverUpload = async (orientation: 'portrait' | 'landscape', file: File) => {
     if (!video) return
     const ext = await writeCoverImage(video.id, orientation, file)
+    if (orientation === 'portrait') invalidateCoverThumbnailCache(video.id)
     updateVideoCover(video.id, orientation, ext)
     const url = URL.createObjectURL(file)
     if (orientation === 'portrait') {
@@ -89,6 +91,7 @@ export function VideoDetail() {
     if (!video) return
     const ext = orientation === 'portrait' ? video.coverPortrait : video.coverLandscape
     if (ext) await deleteCoverImage(video.id, orientation, ext)
+    if (orientation === 'portrait') invalidateCoverThumbnailCache(video.id)
     updateVideoCover(video.id, orientation, undefined)
     if (orientation === 'portrait') {
       setCoverPortraitUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })

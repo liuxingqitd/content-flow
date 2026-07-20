@@ -88,6 +88,21 @@ export async function readTauriBytes(handle: TauriDirectoryHandle, relativePath:
   return bytes ? new Uint8Array(bytes) : null
 }
 
+export async function readTauriCoverThumbnail(
+  handle: TauriDirectoryHandle,
+  relativePath: string,
+  width: number,
+  height: number,
+): Promise<Uint8Array> {
+  const buffer = await invoke<ArrayBuffer>('read_cover_thumbnail', {
+    root: handle.path,
+    relativePath,
+    width,
+    height,
+  })
+  return new Uint8Array(buffer)
+}
+
 export async function writeTauriBytes(
   handle: TauriDirectoryHandle,
   relativePath: string,

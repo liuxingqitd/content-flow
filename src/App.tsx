@@ -64,7 +64,9 @@ const router = createBrowserRouter([
 ])
 
 export function App() {
-  const { data, loading, error } = useAppStore()
+  const data = useAppStore(s => s.data)
+  const loading = useAppStore(s => s.loading)
+  const error = useAppStore(s => s.error)
   const theme = useAppStore(s => s.data?.settings.theme ?? 'dark')
 
   useEffect(() => {

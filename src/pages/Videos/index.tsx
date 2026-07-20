@@ -1,7 +1,12 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store/appStore'
-import { readCoverImage } from '@/services/fileSystem'
+import { readCoverThumbnailImage } from '@/services/fileSystem'
+import {
+  coverThumbnailCacheKey,
+  getCachedCoverThumbnail,
+  loadCoverThumbnail,
+} from '@/services/coverThumbnailCache'
 import { PageContainer } from '@/components/layout/PageContainer'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -28,7 +33,6 @@ const TABLE_COLUMNS = [
 ] as const
 
 const PLATFORM_DISPLAY_ORDER: Platform[] = ['shipinhao', 'xiaohongshu', 'douyin']
-const coverThumbCache = new Map<string, string>()
 
 export function Videos() {
   const navigate = useNavigate()
@@ -191,7 +195,7 @@ export function Videos() {
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)'}
                   >
                     <td style={{ padding: '8px 8px 8px 16px', width: 74, borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                      <CoverThumb key={`${video.id}:${video.coverPortrait ?? ''}:${video.updatedAt}`} videoId={video.id} ext={video.coverPortrait} updatedAt={video.updatedAt} />
+                      <CoverThumb videoId={video.id} ext={video.coverPortrait} revision={video.updatedAt} />
                     </td>
                     <td style={{ padding: '10px 16px', minWidth: 0, borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       <p style={{ fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>{video.title}</p>
@@ -286,26 +290,22 @@ function PlatformStatusIcons({ platforms, status }: { platforms: PlatformPublish
   )
 }
 
-function CoverThumb({ videoId, ext, updatedAt }: { videoId: string; ext?: string; updatedAt: string }) {
-  const imageKey = ext ? `${videoId}:${ext}:${updatedAt}` : null
+function CoverThumb({ videoId, ext, revision }: { videoId: string; ext?: string; revision: string }) {
+  const imageKey = ext ? coverThumbnailCacheKey(videoId, ext) : null
   const [image, setImage] = useState<{ key: string; url: string } | null>(() => {
-    const cached = imageKey ? coverThumbCache.get(imageKey) : undefined
+    const cached = imageKey ? getCachedCoverThumbnail(imageKey) : undefined
     return cached && imageKey ? { key: imageKey, url: cached } : null
   })
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!ext || !imageKey || coverThumbCache.has(imageKey)) return
+    if (!ext || !imageKey) return
     let cancelled = false
 
     const loadImage = () => {
-      readCoverImage(videoId, 'portrait', ext).then(u => {
-        if (cancelled) {
-          if (u) URL.revokeObjectURL(u)
-          return
-        }
+      loadCoverThumbnail(imageKey, () => readCoverThumbnailImage(videoId, 'portrait', ext)).then(u => {
+        if (cancelled) return
         if (!u) return
-        coverThumbCache.set(imageKey, u)
         setImage({ key: imageKey, url: u })
       })
     }
@@ -332,7 +332,7 @@ function CoverThumb({ videoId, ext, updatedAt }: { videoId: string; ext?: string
       cancelled = true
       observer.disconnect()
     }
-  }, [videoId, ext, imageKey])
+  }, [videoId, ext, imageKey, revision])
 
   return (
     <div ref={containerRef} style={{
@@ -341,7 +341,7 @@ function CoverThumb({ videoId, ext, updatedAt }: { videoId: string; ext?: string
       flexShrink: 0,
     }}>
       {imageKey && image?.key === imageKey ? (
-        <img src={image.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        <img src={image.url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       ) : (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="var(--border-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

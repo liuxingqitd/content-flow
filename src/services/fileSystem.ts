@@ -1,6 +1,7 @@
 import type { AppData, DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord, Script, Video } from '@/types'
 import { defaultAppData } from './defaultData'
 import { nanoid } from 'nanoid'
+import { resetCoverThumbnailCache } from './coverThumbnailCache'
 import {
   clearTauriDirectoryHandle,
   deleteTauriFile,
@@ -10,6 +11,7 @@ import {
   pickTauriDirectory,
   readTauriBytes,
   readTauriText,
+  readTauriCoverThumbnail,
   tauriFileSystemAvailable,
   type TauriDirectoryHandle,
   writeTauriBytes,
@@ -152,6 +154,7 @@ export async function getDirectoryHandle(): Promise<DataDirectoryHandle | null> 
 }
 
 export async function pickDirectory(): Promise<DataDirectoryHandle> {
+  resetCoverThumbnailCache()
   if (tauriFileSystemAvailable()) {
     const handle = await pickTauriDirectory()
     _dirHandle = handle
@@ -165,6 +168,7 @@ export async function pickDirectory(): Promise<DataDirectoryHandle> {
 }
 
 export async function clearStoredHandle(): Promise<void> {
+  resetCoverThumbnailCache()
   _dirHandle = null
   if (tauriFileSystemAvailable()) {
     clearTauriDirectoryHandle()
@@ -1041,6 +1045,27 @@ export async function readCoverImage(
     const fileHandle = await coversDir.getFileHandle(filename, { create: false })
     const file = await fileHandle.getFile()
     return URL.createObjectURL(file)
+  } catch {
+    return null
+  }
+}
+
+export async function readCoverThumbnailImage(
+  videoId: string,
+  orientation: 'portrait' | 'landscape',
+  ext: string,
+): Promise<string | null> {
+  const dir = await getDirectoryHandle()
+  if (!dir) return null
+  if (!isTauriDirectoryHandle(dir)) {
+    return readCoverImage(videoId, orientation, ext)
+  }
+
+  try {
+    const filename = `${videoId}_${orientation}.${ext}`
+    const bytes = await readTauriCoverThumbnail(dir, `covers/${filename}`, 96, 128)
+    if (bytes.byteLength === 0) return null
+    return URL.createObjectURL(new Blob([bytesToArrayBuffer(bytes)], { type: 'image/jpeg' }))
   } catch {
     return null
   }
