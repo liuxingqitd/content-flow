@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store/appStore'
 import { PageContainer } from '@/components/layout/PageContainer'
 import type { DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord } from '@/types'
+import { parseXiaohongshuExcel } from '@/services/importXiaohongshu'
 
 type Platform = 'douyin' | 'shipinhao' | 'xiaohongshu'
 
@@ -91,14 +93,27 @@ function NumCell({ value, format }: { value: number; format?: (v: number) => str
   )
 }
 
-function TextCell({ value, maxWidth = 240 }: { value: string; maxWidth?: number }) {
+function TextCell({ value, maxWidth = 240, videoId }: { value: string; maxWidth?: number; videoId?: string }) {
+  const navigate = useNavigate()
   return (
     <td style={{
       padding: '10px 16px', borderBottom: '1px solid var(--border-faint)',
-      fontSize: 12, color: 'var(--text-primary)',
+      fontSize: 12, color: videoId ? 'var(--accent)' : 'var(--text-primary)',
       maxWidth, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
     }} title={value}>
-      {value}
+      {videoId ? (
+        <span
+          onClick={() => navigate(`/videos/${videoId}`)}
+          style={{
+            cursor: 'pointer', color: 'var(--accent)',
+            textDecoration: 'none',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
+        >
+          {value}
+        </span>
+      ) : value}
     </td>
   )
 }
@@ -146,7 +161,7 @@ function DouyinTable({ records }: { records: DouyinRawRecord[] }) {
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)'}
             >
-              <TextCell value={row.title} />
+              <TextCell value={row.title} videoId={row.videoId} />
               <TextCell value={row.publishedAt.slice(0, 10)} maxWidth={100} />
               <TextCell value={row.genre} maxWidth={90} />
               <NumCell value={row.plays} />
@@ -213,7 +228,7 @@ function ShipinhaoTable({ records }: { records: ShipinhaoRawRecord[] }) {
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)'}
             >
-              <TextCell value={row.description} />
+              <TextCell value={row.description} videoId={row.videoId} />
               <TextCell value={row.publishedAt} maxWidth={100} />
               <NumCell value={row.plays} />
               <NumCell value={row.completionRate} format={pct} />
@@ -280,7 +295,7 @@ function XiaohongshuTable({ records }: { records: XiaohongshuRawRecord[] }) {
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-surface)'}
             >
-              <TextCell value={row.title} />
+              <TextCell value={row.title} videoId={row.videoId} />
               <TextCell value={row.publishedAt.slice(0, 10)} maxWidth={100} />
               <TextCell value={row.genre} maxWidth={60} />
               <NumCell value={row.impressions} />
@@ -309,7 +324,28 @@ export function Analytics() {
   const douyinRecords = useAppStore(s => s.data?.douyinRecords ?? [])
   const shipinhaoRecords = useAppStore(s => s.data?.shipinhaoRecords ?? [])
   const xiaohongshuRecords = useAppStore(s => s.data?.xiaohongshuRecords ?? [])
+  const setXiaohongshuRecords = useAppStore(s => s.setXiaohongshuRecords)
   const [platform, setPlatform] = useState<Platform>('douyin')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+
+  const handleImportXiaohongshu = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    setImportError(null)
+    try {
+      const records = await parseXiaohongshuExcel(file)
+      setXiaohongshuRecords(records)
+      setPlatform('xiaohongshu')
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : '导入失败')
+    } finally {
+      setImporting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   const tabs: { id: Platform; label: string; count: number }[] = [
     { id: 'douyin', label: '抖音', count: douyinRecords.length },
@@ -350,7 +386,74 @@ export function Analytics() {
             </span>
           </button>
         ))}
+        {/* Import button — 小红书 */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {platform === 'xiaohongshu' && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleImportXiaohongshu}
+                style={{ display: 'none' }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                style={{
+                  padding: '6px 14px', fontSize: 12, fontWeight: 500,
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-raised)',
+                  color: 'var(--text-primary)',
+                  cursor: importing ? 'not-allowed' : 'pointer',
+                  opacity: importing ? 0.6 : 1,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  transition: 'all var(--duration-fast)',
+                }}
+              >
+                {importing ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 0.8s linear infinite' }}>
+                    <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                    <path d="M12 2a10 10 0 0 1 10 10" />
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                )}
+                {importing ? '导入中…' : '导入Excel'}
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Import error */}
+      {importError && (
+        <div style={{
+          padding: '10px 16px', marginTop: -12, marginBottom: 16,
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--danger-subtle)',
+          color: 'var(--danger)',
+          fontSize: 13,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span>{importError}</span>
+          <button
+            onClick={() => setImportError(null)}
+            style={{
+              background: 'transparent', border: 'none',
+              color: 'var(--danger)', cursor: 'pointer',
+              fontSize: 11, padding: '2px 8px',
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div style={{

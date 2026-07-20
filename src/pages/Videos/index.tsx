@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useLayoutEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store/appStore'
 import { readCoverThumbnailImage } from '@/services/fileSystem'
@@ -33,6 +33,8 @@ const TABLE_COLUMNS = [
 ] as const
 
 const PLATFORM_DISPLAY_ORDER: Platform[] = ['shipinhao', 'xiaohongshu', 'douyin']
+const VIRTUAL_ROW_HEIGHT = 81
+const VIRTUAL_OVERSCAN = 8
 
 export function Videos() {
   const navigate = useNavigate()
@@ -48,6 +50,9 @@ export function Videos() {
   const [filterPlatform, setFilterPlatform] = useState<PlatformFilter | null>(null)
   const [newModal, setNewModal] = useState(false)
   const [newForm, setNewForm] = useState({ title: '', description: '' })
+  const tableScrollRef = useRef<HTMLDivElement>(null)
+  const scrollRafRef = useRef<number | null>(null)
+  const [virtualWindow, setVirtualWindow] = useState({ start: 0, end: 40 })
 
   const setVideoFilter = (s: VideoStatus | 'all') => { setFilterStatus(s); setFilterPlatform(null) }
   const setPlatformFilter = (f: PlatformFilter) => {
@@ -71,6 +76,51 @@ export function Videos() {
     }
     return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }, [displayVideos, filterStatus, filterPlatform, search])
+
+  const updateVirtualWindow = useCallback(() => {
+    const node = tableScrollRef.current
+    if (!node) return
+
+    const visibleCount = Math.ceil(node.clientHeight / VIRTUAL_ROW_HEIGHT) + VIRTUAL_OVERSCAN * 2
+    const maxStart = Math.max(0, filtered.length - visibleCount)
+    const nextStart = Math.min(
+      Math.max(0, Math.floor(node.scrollTop / VIRTUAL_ROW_HEIGHT) - VIRTUAL_OVERSCAN),
+      maxStart,
+    )
+    const nextEnd = Math.min(filtered.length, nextStart + visibleCount)
+
+    setVirtualWindow(current =>
+      current.start === nextStart && current.end === nextEnd
+        ? current
+        : { start: nextStart, end: nextEnd },
+    )
+  }, [filtered.length])
+
+  const handleTableScroll = () => {
+    if (scrollRafRef.current !== null) return
+    scrollRafRef.current = window.requestAnimationFrame(() => {
+      scrollRafRef.current = null
+      updateVirtualWindow()
+    })
+  }
+
+  useLayoutEffect(() => {
+    updateVirtualWindow()
+  }, [updateVirtualWindow])
+
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current !== null) {
+        window.cancelAnimationFrame(scrollRafRef.current)
+      }
+    }
+  }, [])
+
+  const visibleRows = useMemo(
+    () => filtered.slice(virtualWindow.start, virtualWindow.end),
+    [filtered, virtualWindow],
+  )
+  const tableColumnCount = hidePromotionCost ? TABLE_COLUMNS.length - 1 : TABLE_COLUMNS.length
 
   const handleCreate = () => {
     if (!newForm.title.trim()) return
@@ -155,10 +205,14 @@ export function Videos() {
           action={<Button variant="primary" size="sm" onClick={() => setNewModal(true)}>新建视频</Button>}
         />
       ) : (
-        <div style={{
-          borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)',
-          overflow: 'auto', maxWidth: '100%', background: 'var(--bg-surface)', boxShadow: 'var(--shadow-xs)',
-        }}>
+        <div
+          ref={tableScrollRef}
+          onScroll={handleTableScroll}
+          style={{
+            borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)',
+            overflow: 'auto', maxWidth: '100%', maxHeight: 'calc(100vh - 220px)',
+            background: 'var(--bg-surface)', boxShadow: 'var(--shadow-xs)',
+          }}>
           <table style={{ width: '100%', minWidth: TABLE_COLUMNS.filter(c => !hidePromotionCost || c.key !== 'cost').reduce((sum, col) => sum + col.width, 0), tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
             <colgroup>
               {TABLE_COLUMNS.map(col => (
@@ -179,7 +233,13 @@ export function Videos() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((video, idx) => {
+              {virtualWindow.start > 0 && (
+                <tr aria-hidden="true">
+                  <td colSpan={tableColumnCount} style={{ height: virtualWindow.start * VIRTUAL_ROW_HEIGHT, padding: 0, border: 0 }} />
+                </tr>
+              )}
+              {visibleRows.map((video, localIdx) => {
+                const idx = virtualWindow.start + localIdx
                 const videoTags = tags.filter(t => video.tagIds.includes(t.id))
                 return (
                   <tr
@@ -246,6 +306,11 @@ export function Videos() {
                   </tr>
                 )
               })}
+              {virtualWindow.end < filtered.length && (
+                <tr aria-hidden="true">
+                  <td colSpan={tableColumnCount} style={{ height: (filtered.length - virtualWindow.end) * VIRTUAL_ROW_HEIGHT, padding: 0, border: 0 }} />
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

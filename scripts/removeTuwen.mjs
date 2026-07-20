@@ -1,6 +1,6 @@
 import fs from 'fs'
 
-const DATA_DIR = '/Users/liuxingqi/Documents/Claude/Projects/ip_scripts'
+const DATA_DIR = '/Users/liuxingqi/Library/Mobile Documents/iCloud~md~obsidian/Documents/SecondBrain/IPC'
 
 const videos = JSON.parse(fs.readFileSync(`${DATA_DIR}/videos.json`, 'utf-8'))
 const records = JSON.parse(fs.readFileSync(`${DATA_DIR}/douyinRecords.json`, 'utf-8'))

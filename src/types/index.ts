@@ -158,6 +158,7 @@ export interface AppSettings {
 export interface DouyinRawRecord {
   id: string
   title: string          // 作品名称
+  videoId?: string       // 关联的视频库条目ID（AI语义匹配）
   publishedAt: string    // 发布时间
   genre: string          // 体裁
   status: string         // 审核状态
@@ -180,6 +181,7 @@ export interface DouyinRawRecord {
 export interface XiaohongshuRawRecord {
   id: string
   title: string           // 笔记标题
+  videoId?: string        // 关联的视频库条目ID（AI语义匹配）
   publishedAt: string     // 首次发布时间
   genre: string           // 体裁
   impressions: number     // 曝光

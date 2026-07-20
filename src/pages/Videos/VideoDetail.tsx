@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store/appStore'
 import { writeCoverImage, readCoverImage, readCoverFile, deleteCoverImage } from '@/services/fileSystem'
@@ -10,7 +10,7 @@ import { PlatformIcon } from '@/components/PlatformIcon'
 import { Modal } from '@/components/ui/Modal'
 import { Input, Textarea } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import type { Platform } from '@/types'
+import type { Platform, DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord } from '@/types'
 import {
   VIDEO_STATUS_LABELS, VIDEO_STATUS_ORDER, ALL_PLATFORMS, PLATFORM_LABELS,
   PLATFORM_STATUS_LABELS, PLATFORM_STATUS_COLORS,
@@ -43,10 +43,17 @@ export function VideoDetail() {
   const addVideoRelation = useAppStore(s => s.addVideoRelation)
   const updateVideoRelation = useAppStore(s => s.updateVideoRelation)
   const deleteVideoRelation = useAppStore(s => s.deleteVideoRelation)
+  const douyinRecords = useAppStore(s => s.data?.douyinRecords ?? [])
+  const shipinhaoRecords = useAppStore(s => s.data?.shipinhaoRecords ?? [])
+  const xiaohongshuRecords = useAppStore(s => s.data?.xiaohongshuRecords ?? [])
 
   const video = videos.find(v => v.id === id)
   const script = scripts.find(s => s.id === video?.scriptId)
   const videoMetrics = metrics.filter(m => m.videoId === id)
+  const linkedDouyin = useMemo(() => douyinRecords.filter(r => r.videoId === id), [douyinRecords, id])
+  const linkedShipinhao = useMemo(() => shipinhaoRecords.filter(r => r.videoId === id), [shipinhaoRecords, id])
+  const linkedXiaohongshu = useMemo(() => xiaohongshuRecords.filter(r => r.videoId === id), [xiaohongshuRecords, id])
+  const hasLinkedRecords = linkedDouyin.length > 0 || linkedShipinhao.length > 0 || linkedXiaohongshu.length > 0
 
   const [coverPortraitUrl, setCoverPortraitUrl] = useState<string | null>(null)
   const [coverLandscapeUrl, setCoverLandscapeUrl] = useState<string | null>(null)
@@ -796,6 +803,13 @@ export function VideoDetail() {
             <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '16px 0' }}>暂无数据记录，点击「录入数据」开始追踪</p>
           )}
         </div>
+
+        {/* Linked Analytics Data */}
+        {hasLinkedRecords && <AnalyticsSection
+          douyin={linkedDouyin}
+          shipinhao={linkedShipinhao}
+          xiaohongshu={linkedXiaohongshu}
+        />}
       </div>
 
       {/* Relation modal */}
@@ -984,6 +998,192 @@ export function VideoDetail() {
         <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>删除后此视频及相关记录将被移除，此操作不可撤销。</p>
       </Modal>
     </PageContainer>
+  )
+}
+
+// ===== Analytics section: linked platform data =====
+
+type AnalyticsPlatform = 'douyin' | 'shipinhao' | 'xiaohongshu'
+
+function AnalyticsSection({
+  douyin,
+  shipinhao,
+  xiaohongshu,
+}: {
+  douyin: DouyinRawRecord[]
+  shipinhao: ShipinhaoRawRecord[]
+  xiaohongshu: XiaohongshuRawRecord[]
+}) {
+  const navigate = useNavigate()
+  const [tab, setTab] = useState<AnalyticsPlatform>(() => {
+    if (douyin.length > 0) return 'douyin'
+    if (shipinhao.length > 0) return 'shipinhao'
+    return 'xiaohongshu'
+  })
+
+  type Tab = { id: AnalyticsPlatform; label: string; count: number }
+  const tabs: Tab[] = ([
+    { id: 'douyin', label: '抖音', count: douyin.length },
+    { id: 'shipinhao', label: '视频号', count: shipinhao.length },
+    { id: 'xiaohongshu', label: '小红书', count: xiaohongshu.length },
+  ] satisfies Tab[]).filter(t => t.count > 0)
+
+  return (
+    <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+      <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>平台数据（自动关联）</p>
+
+      <div style={{ display: 'flex', gap: 4, marginBottom: 12, borderBottom: '1px solid var(--border-subtle)' }}>
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              padding: '8px 12px', fontSize: 12, fontWeight: tab === t.id ? 550 : 450,
+              cursor: 'pointer', border: 'none', background: 'transparent',
+              borderBottom: `2px solid ${tab === t.id ? 'var(--accent)' : 'transparent'}`,
+              color: tab === t.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+              marginBottom: -1, display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            {t.label}
+            <span style={{
+              fontSize: 11, fontWeight: 600, minWidth: 18, padding: '1px 6px', borderRadius: 99,
+              background: tab === t.id ? 'var(--accent-subtle)' : 'var(--bg-raised)',
+              color: tab === t.id ? 'var(--accent)' : 'var(--text-tertiary)',
+            }}>
+              {t.count}
+            </span>
+          </button>
+        ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+          <span
+            onClick={() => navigate('/analytics')}
+            style={{
+              fontSize: 11, color: 'var(--accent)', cursor: 'pointer',
+              padding: '4px 8px',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
+          >
+            查看全部 →
+          </span>
+        </div>
+      </div>
+
+      {tab === 'douyin' && <DouyinAnalyticsTable records={douyin} />}
+      {tab === 'shipinhao' && <ShipinhaoAnalyticsTable records={shipinhao} />}
+      {tab === 'xiaohongshu' && <XiaohongshuAnalyticsTable records={xiaohongshu} />}
+    </div>
+  )
+}
+
+function DouyinAnalyticsTable({ records }: { records: DouyinRawRecord[] }) {
+  const sorted = useMemo(() => [...records].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)), [records])
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`
+  const sec = (v: number) => `${v.toFixed(1)}s`
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+            {['发布时间', '播放', '完播率', '5s完播率', '2s跳出率', '均播时长', '点赞', '分享', '评论', '收藏', '主页访问', '涨粉'].map(h => (
+              <th key={h} style={{ textAlign: h === '发布时间' ? 'left' : 'right', padding: '6px 10px', color: 'var(--text-tertiary)', fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(r => (
+            <tr key={r.id} style={{ borderBottom: '1px solid var(--border-faint)' }}>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{r.publishedAt.slice(0, 10)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-primary)', fontWeight: 500, textAlign: 'right' }}>{formatNumber(r.plays)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{pct(r.completionRate)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{pct(r.fiveSecRate)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{pct(r.twoSecBounceRate)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{sec(r.avgPlayDuration)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.likes)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.shares)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.comments)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.saves)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.profileVisits)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.followerGain)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ShipinhaoAnalyticsTable({ records }: { records: ShipinhaoRawRecord[] }) {
+  const sorted = useMemo(() => [...records].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)), [records])
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+            {['发布时间', '播放', '完播率', '均播时长', '推荐', '喜欢', '评论', '分享', '关注', '转发'].map(h => (
+              <th key={h} style={{ textAlign: h === '发布时间' ? 'left' : 'right', padding: '6px 10px', color: 'var(--text-tertiary)', fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(r => (
+            <tr key={r.id} style={{ borderBottom: '1px solid var(--border-faint)' }}>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{r.publishedAt.slice(0, 10)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-primary)', fontWeight: 500, textAlign: 'right' }}>{formatNumber(r.plays)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{pct(r.completionRate)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{r.avgPlayDuration}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.recommendations)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.likes)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.comments)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.shares)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.follows)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.forwardChat)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function XiaohongshuAnalyticsTable({ records }: { records: XiaohongshuRawRecord[] }) {
+  const sorted = useMemo(() => [...records].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)), [records])
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`
+  const sec = (v: number) => `${v.toFixed(0)}s`
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+            {['发布时间', '曝光', '观看量', '封面点击率', '人均观看时长', '点赞', '评论', '收藏', '分享', '涨粉', '弹幕'].map(h => (
+              <th key={h} style={{ textAlign: h === '发布时间' ? 'left' : 'right', padding: '6px 10px', color: 'var(--text-tertiary)', fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(r => (
+            <tr key={r.id} style={{ borderBottom: '1px solid var(--border-faint)' }}>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{r.publishedAt.slice(0, 10)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-primary)', fontWeight: 500, textAlign: 'right' }}>{formatNumber(r.impressions)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.views)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{pct(r.coverCtr)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{sec(r.avgWatchDuration)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.likes)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.comments)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.saves)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.shares)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.follows)}</td>
+              <td style={{ padding: '6px 10px', color: 'var(--text-secondary)', textAlign: 'right' }}>{formatNumber(r.danmaku)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 

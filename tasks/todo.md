@@ -1,3 +1,35 @@
+# 诊断视频库标签页滚动性能
+
+## Spec
+
+- 定位视频库标签页上下滚动卡顿的主要原因。
+- 优先处理列表滚动路径上的同步渲染、DOM 数量、封面读取和重复计算问题。
+- 保持视频库现有筛选、点击跳转、封面展示和列信息不变。
+- 修改范围尽量限制在视频库列表页，避免影响数据结构和其他页面。
+
+## Tasks
+
+- [x] 检查视频库列表渲染路径和已有封面懒加载实现。
+- [x] 识别滚动卡顿的主要候选瓶颈。
+- [x] 实施最小影响的性能优化。
+- [x] 运行类型检查、lint/build 等验证。
+- [x] 添加 Review / 复盘。
+
+## Review / 复盘
+
+- 这次卡顿的主要候选根因不是封面读取首屏阻塞：视频库已有 `IntersectionObserver` 懒加载和会话级 object URL 缓存。
+- 更可能的瓶颈是大数据量下表格一次性渲染所有视频行；每行包含封面组件、标签筛选、平台图标、多个 inline style 和 hover handler，滚动时 DOM/layout/paint 成本会随总行数线性放大。
+- 已将视频库表格改为轻量虚拟滚动：容器内滚动，只渲染视口附近行，顶部/底部 spacer 保持完整滚动高度。
+- 滚动窗口更新使用 `requestAnimationFrame` 合并，避免滚动事件高频触发 React state 更新。
+- 筛选结果缩短时会夹住虚拟窗口范围，避免深滚动后出现空白列表。
+- `npx eslint src/pages/Videos/index.tsx` 已通过。
+- `npx tsc -b --pretty false` 已通过。
+- `npm run build` 已通过；仅有既有 Vite 大 chunk 警告。
+- 浏览器预览 `http://127.0.0.1:4173/videos` 可加载构建产物；当前浏览器会话没有授权数据目录，因此停在“选择数据目录”页，无法用真实视频库数据做滚动手测。
+- 追加客户端验证：`npm run tauri -- build --debug` 已通过，并重新生成 `/Users/liuxingqi/private/ip_content/src-tauri/target/debug/bundle/macos/ContentFlow.app`。
+
+---
+
 # Tauri 原生客户端封装
 
 ## Spec

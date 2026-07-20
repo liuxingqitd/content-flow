@@ -3,7 +3,7 @@
 import fs from 'fs'
 import { randomUUID } from 'crypto'
 
-const DATA_DIR = '/Users/liuxingqi/Documents/Claude/Projects/ip_scripts'
+const DATA_DIR = '/Users/liuxingqi/Library/Mobile Documents/iCloud~md~obsidian/Documents/SecondBrain/IPC'
 
 // 读取现有数据
 const existingVideos = JSON.parse(fs.readFileSync(`${DATA_DIR}/videos.json`, 'utf-8'))

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const PRESET_COLORS = ['#7C3AED','#2563EB','#0EA5E9','#059669','#84CC16','#D97706','#DC2626','#DB2777','#64748B','#374151']
 import { useAppStore } from '@/store/appStore'
@@ -6,7 +6,7 @@ import { PageContainer } from '@/components/layout/PageContainer'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
-import { clearStoredHandle, pickDirectory, isSecureContext, isFileSystemSupported } from '@/services/fileSystem'
+import { clearStoredHandle, pickDirectory, isSecureContext, isFileSystemSupported, getDataDirectoryInfo, type DataDirectoryInfo } from '@/services/fileSystem'
 import type { Tag, ChecklistItem, TransitionKey, AppSettings } from '@/types'
 import { AIProviderSettings } from '@/copilot/AIProviderSettings'
 
@@ -36,6 +36,7 @@ export function Settings() {
   const [transitionModal, setTransitionModal] = useState<{ key: TransitionKey; mode: 'new' | 'edit'; item?: ChecklistItem } | null>(null)
   const [transitionText, setTransitionText] = useState('')
   const [reconnecting, setReconnecting] = useState(false)
+  const [dataDirectoryInfo, setDataDirectoryInfo] = useState<DataDirectoryInfo | null>(null)
 
   type ReasonField = 'violationReasons' | 'skipReasons'
   const [reasonModal, setReasonModal] = useState<{ field: ReasonField; mode: 'new' | 'edit'; index?: number } | null>(null)
@@ -43,6 +44,18 @@ export function Settings() {
 
   const violationReasons = data?.settings.violationReasons ?? []
   const skipReasons = data?.settings.skipReasons ?? []
+
+  useEffect(() => {
+    let cancelled = false
+    getDataDirectoryInfo()
+      .then(info => {
+        if (!cancelled) setDataDirectoryInfo(info)
+      })
+      .catch(() => {
+        if (!cancelled) setDataDirectoryInfo(null)
+      })
+    return () => { cancelled = true }
+  }, [data])
 
   const openNewReason = (field: ReasonField) => { setReasonText(''); setReasonModal({ field, mode: 'new' }) }
   const openEditReason = (field: ReasonField, index: number, text: string) => { setReasonText(text); setReasonModal({ field, mode: 'edit', index }) }
@@ -131,6 +144,7 @@ export function Settings() {
       await clearStoredHandle()
       await pickDirectory()
       await loadData()
+      setDataDirectoryInfo(await getDataDirectoryInfo())
     } finally {
       setReconnecting(false)
     }
@@ -342,6 +356,32 @@ export function Settings() {
               {sectionTitle('数据管理')}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16,
+                minHeight: 68, padding: '12px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)',
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>数据目录</p>
+                  <p
+                    title={dataDirectoryInfo?.label ?? undefined}
+                    style={{
+                      fontSize: 12,
+                      color: dataDirectoryInfo ? 'var(--text-secondary)' : 'var(--text-tertiary)',
+                      marginTop: 4,
+                      fontFamily: 'ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace',
+                      overflowWrap: 'anywhere',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {dataDirectoryInfo?.label ?? '未选择数据目录'}
+                  </p>
+                  {dataDirectoryInfo?.kind === 'name' && (
+                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                      当前浏览器只允许应用读取目录名称，完整路径不会暴露给网页
+                    </p>
+                  )}
+                </div>
+              </div>
               {[
                 {
                   title: '导出备份',

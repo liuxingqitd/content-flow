@@ -60,6 +60,11 @@ const DEMO_ID_PREFIXES = ['vid_demo', 'script_demo', 'topic_demo']
 
 type DataDirectoryHandle = FileSystemDirectoryHandle | TauriDirectoryHandle
 
+export interface DataDirectoryInfo {
+  label: string
+  kind: 'path' | 'name'
+}
+
 type FileSystemPermissionDescriptor = { mode?: 'read' | 'readwrite' }
 type PermissionDirectoryHandle = FileSystemDirectoryHandle & {
   queryPermission?: (descriptor?: FileSystemPermissionDescriptor) => Promise<PermissionState>
@@ -151,6 +156,17 @@ export async function getDirectoryHandle(): Promise<DataDirectoryHandle | null> 
     }
   }
   return null
+}
+
+export async function getDataDirectoryInfo(): Promise<DataDirectoryInfo | null> {
+  const handle = await getDirectoryHandle()
+  if (!handle) return null
+
+  if (isTauriDirectoryHandle(handle)) {
+    return { label: handle.path, kind: 'path' }
+  }
+
+  return { label: handle.name, kind: 'name' }
 }
 
 export async function pickDirectory(): Promise<DataDirectoryHandle> {
