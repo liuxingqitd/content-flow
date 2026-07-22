@@ -16,8 +16,9 @@ import {
   PLATFORM_STATUS_LABELS, PLATFORM_STATUS_COLORS,
   ALL_SHOOTING_FORMATS, SHOOTING_FORMAT_LABELS,
 } from '@/types'
-import { formatDate, formatDateTime, fromDateTimeLocalValue, fromNow, toDateTimeLocalValue } from '@/utils/date'
+import { formatDate, formatDateTime, formatFullDateTime, fromDateTimeLocalValue, fromNow, toDateTimeLocalValue } from '@/utils/date'
 import { calcEngagement, formatNumber } from '@/utils/format'
+import { getVideoDetailCreatedAt } from './videoDetailUtils'
 
 export function VideoDetail() {
   const { id } = useParams<{ id: string }>()
@@ -46,6 +47,7 @@ export function VideoDetail() {
   const video = videos.find(v => v.id === id)
   const script = scripts.find(s => s.id === video?.scriptId)
   const videoMetrics = metrics.filter(m => m.videoId === id)
+  const detailCreatedAt = video ? getVideoDetailCreatedAt(video) : undefined
   const linkedDouyin = useMemo(() => douyinRecords.filter(r => r.videoId === id), [douyinRecords, id])
   const linkedShipinhao = useMemo(() => shipinhaoRecords.filter(r => r.videoId === id), [shipinhaoRecords, id])
   const linkedXiaohongshu = useMemo(() => xiaohongshuRecords.filter(r => r.videoId === id), [xiaohongshuRecords, id])
@@ -618,7 +620,7 @@ export function VideoDetail() {
             </div>
 
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 6, padding: '14px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', fontVariantNumeric: 'tabular-nums' }}>
-              <p>创建：{formatDate(video.createdAt)}</p>
+              <p>记录生成：{formatFullDateTime(detailCreatedAt ?? video.createdAt)}</p>
               <p>最后更新：{fromNow(video.updatedAt)}</p>
             </div>
           </div>
