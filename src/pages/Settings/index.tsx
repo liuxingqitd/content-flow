@@ -38,12 +38,11 @@ export function Settings() {
   const [reconnecting, setReconnecting] = useState(false)
   const [dataDirectoryInfo, setDataDirectoryInfo] = useState<DataDirectoryInfo | null>(null)
 
-  type ReasonField = 'violationReasons' | 'skipReasons'
+  type ReasonField = 'violationReasons'
   const [reasonModal, setReasonModal] = useState<{ field: ReasonField; mode: 'new' | 'edit'; index?: number } | null>(null)
   const [reasonText, setReasonText] = useState('')
 
   const violationReasons = data?.settings.violationReasons ?? []
-  const skipReasons = data?.settings.skipReasons ?? []
 
   useEffect(() => {
     let cancelled = false
@@ -524,7 +523,6 @@ export function Settings() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {([
                 { field: 'violationReasons' as ReasonField, label: '违规原因', items: violationReasons },
-                { field: 'skipReasons' as ReasonField, label: '跳过原因', items: skipReasons },
               ]).map(({ field, label, items }) => (
                 <div key={field}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>

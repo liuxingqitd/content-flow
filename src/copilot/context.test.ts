@@ -17,7 +17,7 @@ const data = {
   topics: [],
   metrics: [],
   scripts: [],
-  settings: { theme: 'dark', defaultPlatforms: [], violationReasons: [], skipReasons: [] },
+  settings: { theme: 'dark', defaultPlatforms: [], violationReasons: [] },
   douyinRecords: [{ id: 'raw', title: 'secret raw record' }],
   shipinhaoRecords: [],
   xiaohongshuRecords: [],

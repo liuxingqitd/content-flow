@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import type { AppData, Video, Topic, Script, Tag, VideoMetrics, AppSettings, VideoStatus, Platform, PlatformPublish, TransitionKey, DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord, VideoRelation } from '@/types'
 import { now } from '@/utils/date'
-import { videoId, topicId, scriptId, tagId, metricId, checklistItemId, videoRelationId } from '@/utils/id'
+import { videoId, topicId, scriptId, tagId, metricId, checklistItemId, videoRelationId, promotionRecordId } from '@/utils/id'
 import { readAppData, writeAppData } from '@/services/fileSystem'
 
 interface AppState {
@@ -48,7 +48,9 @@ interface AppState {
   // Platform entries
   setPlatformEntry: (videoId: string, platform: Platform, entry: Omit<PlatformPublish, 'platform'> | null) => void
   updatePlatformPublishedAt: (videoId: string, platform: Platform, publishedAt: string) => void
-  updatePromotionCost: (videoId: string, platform: Platform, cost: number | undefined) => void
+  addPromotionRecord: (videoId: string, platform: Platform, amount: number, spentAt: string) => void
+  updatePromotionRecord: (videoId: string, recordId: string, platform: Platform, amount: number, spentAt: string) => void
+  deletePromotionRecord: (videoId: string, recordId: string) => void
 
   // Metrics
   addMetric: (m: Omit<VideoMetrics, 'id' | 'recordedAt'>) => void
@@ -641,18 +643,45 @@ export const useAppStore = create<AppState>()(
       scheduleSave(get)
     },
 
-    updatePromotionCost: (videoId, platform, cost) => {
+    addPromotionRecord: (videoId, platform, amount, spentAt) => {
       set(s => {
         if (!s.data) return
         const video = s.data.videos.find(v => v.id === videoId)
         if (!video) return
-        const entry = video.platforms.find(p => p.platform === platform)
-        if (!entry) return
-        if (cost === undefined || cost === 0) {
-          delete entry.promotionCost
-        } else {
-          entry.promotionCost = cost
-        }
+        if (amount <= 0) return
+        video.promotionRecords ??= []
+        video.promotionRecords.push({
+          id: promotionRecordId(),
+          platform,
+          amount,
+          spentAt,
+          createdAt: now(),
+        })
+        video.updatedAt = now()
+      })
+      scheduleSave(get)
+    },
+
+    updatePromotionRecord: (videoId, recordId, platform, amount, spentAt) => {
+      set(s => {
+        if (!s.data || amount <= 0) return
+        const video = s.data.videos.find(v => v.id === videoId)
+        const record = video?.promotionRecords?.find(item => item.id === recordId)
+        if (!video || !record) return
+        record.platform = platform
+        record.amount = amount
+        record.spentAt = spentAt
+        video.updatedAt = now()
+      })
+      scheduleSave(get)
+    },
+
+    deletePromotionRecord: (videoId, recordId) => {
+      set(s => {
+        if (!s.data) return
+        const video = s.data.videos.find(v => v.id === videoId)
+        if (!video) return
+        video.promotionRecords = (video.promotionRecords ?? []).filter(item => item.id !== recordId)
         video.updatedAt = now()
       })
       scheduleSave(get)

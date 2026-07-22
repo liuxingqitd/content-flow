@@ -1,12 +1,13 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts'
+import { ResponsiveContainer, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts'
 import { useAppStore } from '@/store/appStore'
 import { PageContainer } from '@/components/layout/PageContainer'
 import { StatusBadge } from '@/components/StatusBadge'
 import type { VideoStatus } from '@/types'
-import { VIDEO_STATUS_LABELS, VIDEO_STATUS_ORDER, SHOOTING_FORMAT_LABELS, ALL_SHOOTING_FORMATS } from '@/types'
+import { VIDEO_STATUS_LABELS, VIDEO_STATUS_ORDER } from '@/types'
 import { fromNow, formatDate } from '@/utils/date'
+import { buildWeeklyPublishTrend } from './weeklyPublishTrend'
 
 export function Dashboard() {
   const navigate = useNavigate()
@@ -48,17 +49,12 @@ export function Dashboard() {
 
   const monthlyPromotionCost = useMemo(() => {
     return videos.reduce((total, video) => {
-      return total + video.platforms.reduce((sum, platform) => {
-        const cost = platform.promotionCost ?? 0
-        if (cost <= 0) return sum
-
-        const monthSource = platform.publishedAt ?? video.createdAt
-        const date = new Date(monthSource)
+      return total + (video.promotionRecords ?? []).reduce((sum, record) => {
+        const date = new Date(record.spentAt)
         if (date.getMonth() !== currentMonth || date.getFullYear() !== currentYear) {
           return sum
         }
-
-        return sum + cost
+        return sum + record.amount
       }, 0)
     }, 0)
   }, [videos, currentMonth, currentYear])
@@ -108,17 +104,7 @@ export function Dashboard() {
     return Object.values(countMap).sort((a, b) => b.count - a.count)
   }, [videos, tags])
 
-  const shootingFormatDistribution = useMemo(() => {
-    const countMap: Record<string, number> = {}
-    videos.forEach(v => {
-      (v.shootingFormats ?? []).forEach(sf => {
-        countMap[sf] = (countMap[sf] || 0) + 1
-      })
-    })
-    return ALL_SHOOTING_FORMATS
-      .map(sf => ({ name: SHOOTING_FORMAT_LABELS[sf], count: countMap[sf] || 0, key: sf }))
-      .filter(d => d.count > 0)
-  }, [videos])
+  const weeklyPublishTrend = useMemo(() => buildWeeklyPublishTrend(videos), [videos])
 
   const pipelineColors: Record<string, string> = {
     topic: 'var(--status-topic, var(--status-topic-text))',
@@ -273,23 +259,29 @@ export function Dashboard() {
             )}
           </div>
 
-          {/* Shooting format distribution chart */}
+          {/* Weekly publishing trend */}
           <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 16 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>拍摄形式分布</p>
-            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>各拍摄形式使用频次，辅助判断形式搭配</p>
-            {shootingFormatDistribution.length === 0 ? (
-              <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 0' }}>暂无拍摄形式数据</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={Math.max(80, shootingFormatDistribution.length * 36)}>
-                <BarChart data={shootingFormatDistribution} layout="vertical" margin={{ top: 0, right: 16, left: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} width={72} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`${v} 条`, '视频数']} />
-                  <Bar dataKey="count" name="视频数" fill="var(--accent)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>每周发布趋势</p>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>最近 12 周首次发布的视频数量</p>
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={weeklyPublishTrend} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="weeklyPublishFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.03} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }} allowDecimals={false} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  labelFormatter={(_, payload) => payload[0]?.payload ? `${payload[0].payload.weekStart} 至 ${payload[0].payload.weekEnd}` : ''}
+                  formatter={(v: unknown) => [`${v} 条`, '发布视频']}
+                />
+                <Area type="monotone" dataKey="count" name="发布视频" stroke="var(--accent)" strokeWidth={2} fill="url(#weeklyPublishFill)" activeDot={{ r: 4 }} />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>

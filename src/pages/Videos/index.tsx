@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/Input'
 import type { Platform, PlatformPublish, PlatformPublishStatus, VideoStatus } from '@/types'
 import { VIDEO_STATUS_LABELS, SHOOTING_FORMAT_LABELS } from '@/types'
 
-type PlatformFilter = 'violated' | 'skipped'
+type PlatformFilter = 'violated'
 import { fromNow } from '@/utils/date'
 
 const TABLE_COLUMNS = [
@@ -28,7 +28,6 @@ const TABLE_COLUMNS = [
   { key: 'cost', width: 92 },
   { key: 'published', width: 108 },
   { key: 'violated', width: 94 },
-  { key: 'skipped', width: 94 },
   { key: 'updated', width: 82 },
 ] as const
 
@@ -61,7 +60,6 @@ export function Videos() {
   }
 
   const violated = displayVideos.filter(v => v.platforms.some(p => (p.status ?? 'published') === 'violated'))
-  const skipped = displayVideos.filter(v => v.platforms.some(p => (p.status ?? 'published') === 'skipped'))
 
   const filtered = useMemo(() => {
     let list = displayVideos
@@ -185,15 +183,6 @@ export function Videos() {
               activeBg="rgba(248,113,113,0.14)"
             />
           )}
-          {skipped.length > 0 && (
-            <FilterChip
-              active={filterPlatform === 'skipped'}
-              onClick={() => setPlatformFilter('skipped')}
-              label={`已跳过 (${skipped.length})`}
-              color="var(--text-tertiary)"
-              activeBg="rgba(148,150,161,0.14)"
-            />
-          )}
         </div>
       </div>
 
@@ -222,7 +211,7 @@ export function Videos() {
             <thead>
               <tr>
                 <th style={{ width: 74, padding: '9px 8px 9px 16px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1 }} />
-                {['标题', '标签', '拍摄形式', ...(hidePromotionCost ? [] : ['投放金额']), '已发布', '已违规', '已跳过', '更新'].map(h => (
+                {['标题', '标签', '拍摄形式', ...(hidePromotionCost ? [] : ['投放金额']), '已发布', '已违规', '更新'].map(h => (
                   <th key={h} style={{
                     textAlign: 'left', padding: '9px 16px', fontSize: 11, fontWeight: 600,
                     color: 'var(--text-tertiary)', letterSpacing: '0.04em',
@@ -286,7 +275,7 @@ export function Videos() {
                     {!hidePromotionCost && (
                     <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       {(() => {
-                        const total = video.platforms.reduce((sum, p) => sum + (p.promotionCost ?? 0), 0)
+                        const total = (video.promotionRecords ?? []).reduce((sum, record) => sum + record.amount, 0)
                         return total > 0 ? `¥${total.toLocaleString()}` : <span style={{ color: 'var(--text-tertiary)' }}>—</span>
                       })()}
                     </td>
@@ -296,9 +285,6 @@ export function Videos() {
                     </td>
                     <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       <PlatformStatusIcons platforms={video.platforms} status="violated" />
-                    </td>
-                    <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                      <PlatformStatusIcons platforms={video.platforms} status="skipped" />
                     </td>
                     <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       {fromNow(video.updatedAt)}

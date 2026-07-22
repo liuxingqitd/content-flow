@@ -37,9 +37,13 @@ const VIDEOS: Video[] = [
       { status: 'published', changedAt: d(5) },
     ],
     platforms: [
-      { platform: 'douyin', status: 'published', publishedAt: d(5), url: 'https://www.douyin.com/video/demo', promotionCost: 500 },
-      { platform: 'xiaohongshu', status: 'published', publishedAt: d(5), promotionCost: 200 },
+      { platform: 'douyin', status: 'published', publishedAt: d(5), url: 'https://www.douyin.com/video/demo' },
+      { platform: 'xiaohongshu', status: 'published', publishedAt: d(5) },
       { platform: 'shipinhao', status: 'published', publishedAt: d(4) },
+    ],
+    promotionRecords: [
+      { id: 'promo_demo01', platform: 'douyin', amount: 500, spentAt: d(4), createdAt: d(4) },
+      { id: 'promo_demo02', platform: 'xiaohongshu', amount: 200, spentAt: d(3), createdAt: d(3) },
     ],
     shootingFormats: ['landscape', 'talking'],
     description: '分享3个真实的普通人财务自由案例，总结可复制的路径。',
@@ -194,7 +198,6 @@ export function defaultAppData(): AppData {
       theme: 'dark',
       defaultPlatforms: ['douyin', 'xiaohongshu', 'shipinhao'],
       violationReasons: ['违反社区公约', '涉嫌第三方导流'],
-      skipReasons: ['该平台不适合此类内容', '本期跳过发布'],
       hidePromotionCost: false,
       hideCommercialAmount: false,
     },

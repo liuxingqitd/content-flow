@@ -60,6 +60,62 @@ const DEMO_ID_PREFIXES = ['vid_demo', 'script_demo', 'topic_demo']
 
 type DataDirectoryHandle = FileSystemDirectoryHandle | TauriDirectoryHandle
 
+type LegacyPlatformPublish = Omit<AppData['videos'][number]['platforms'][number], 'status'> & {
+  status?: AppData['videos'][number]['platforms'][number]['status'] | 'skipped'
+  promotionCost?: number
+}
+
+export function migratePlatformPublishingData(data: AppData): boolean {
+  let changed = false
+
+  data.videos.forEach(video => {
+    const legacyPlatforms = video.platforms as LegacyPlatformPublish[]
+
+    legacyPlatforms.forEach(platform => {
+      if (platform.promotionCost !== undefined) {
+        if (platform.promotionCost > 0) {
+          const spentAt = platform.publishedAt ?? video.createdAt
+          const alreadyMigrated = video.promotionRecords?.some(record =>
+            record.platform === platform.platform &&
+            record.amount === platform.promotionCost &&
+            record.spentAt === spentAt,
+          )
+          if (!alreadyMigrated) {
+            video.promotionRecords ??= []
+            video.promotionRecords.push({
+              id: `promo_${nanoid(10)}`,
+              platform: platform.platform,
+              amount: platform.promotionCost,
+              spentAt,
+              createdAt: spentAt,
+            })
+          }
+        }
+        delete platform.promotionCost
+        changed = true
+      }
+    })
+
+    const migratedPlatforms = legacyPlatforms
+      .filter(platform => {
+        if (platform.status !== 'skipped') return true
+        changed = true
+        return false
+      })
+      .map(platform => {
+        if (platform.status === undefined) changed = true
+        return {
+          ...platform,
+          status: (platform.status === 'violated' ? 'violated' : 'published') as AppData['videos'][number]['platforms'][number]['status'],
+        }
+      })
+
+    video.platforms = migratedPlatforms
+  })
+
+  return changed
+}
+
 export interface DataDirectoryInfo {
   label: string
   kind: 'path' | 'name'
@@ -462,6 +518,8 @@ export async function readAppData(): Promise<AppData> {
 
   let changed = false
 
+  if (migratePlatformPublishingData(data)) changed = true
+
   // One-time migration: add video relations collection for existing installations
   if (!data.videoRelations) {
     data.videoRelations = []
@@ -524,13 +582,9 @@ export async function readAppData(): Promise<AppData> {
     }))
     changed = true
   }
-  // One-time migration: add violation/skip reason presets for existing installations
+  // One-time migration: add violation reason presets for existing installations
   if (!data.settings.violationReasons) {
     data.settings.violationReasons = ['违反社区公约', '涉嫌第三方导流']
-    changed = true
-  }
-  if (!data.settings.skipReasons) {
-    data.settings.skipReasons = ['该平台不适合此类内容', '本期跳过发布']
     changed = true
   }
   if (data.settings.hidePromotionCost === undefined) {
@@ -579,6 +633,8 @@ async function readTauriAppData(dir: TauriDirectoryHandle): Promise<AppData> {
   }
 
   let changed = false
+
+  if (migratePlatformPublishingData(data)) changed = true
 
   if (!data.videoRelations) {
     data.videoRelations = []
@@ -637,10 +693,6 @@ async function readTauriAppData(dir: TauriDirectoryHandle): Promise<AppData> {
   }
   if (!data.settings.violationReasons) {
     data.settings.violationReasons = ['违反社区公约', '涉嫌第三方导流']
-    changed = true
-  }
-  if (!data.settings.skipReasons) {
-    data.settings.skipReasons = ['该平台不适合此类内容', '本期跳过发布']
     changed = true
   }
   if (data.settings.hidePromotionCost === undefined) {

@@ -150,11 +150,6 @@ export function VideoSlideOver({ video, onClose }: Props) {
                           {p.violation.reason.slice(0, 28)}{p.violation.reason.length > 28 ? '…' : ''}
                         </div>
                       )}
-                      {status === 'skipped' && p.skipReason && (
-                        <div style={{ marginTop: 3, marginLeft: 24, fontSize: 11, color: 'var(--text-tertiary)' }}>
-                          {p.skipReason.slice(0, 28)}{p.skipReason.length > 28 ? '…' : ''}
-                        </div>
-                      )}
                     </div>
                   )
                 })}

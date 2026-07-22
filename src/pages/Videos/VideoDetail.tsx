@@ -12,11 +12,11 @@ import { Input, Textarea } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import type { Platform, DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord } from '@/types'
 import {
-  VIDEO_STATUS_LABELS, VIDEO_STATUS_ORDER, ALL_PLATFORMS, PLATFORM_LABELS,
+  ALL_PLATFORMS, PLATFORM_LABELS,
   PLATFORM_STATUS_LABELS, PLATFORM_STATUS_COLORS,
   ALL_SHOOTING_FORMATS, SHOOTING_FORMAT_LABELS,
 } from '@/types'
-import { formatDate, fromDateTimeLocalValue, fromNow, toDateTimeLocalValue } from '@/utils/date'
+import { formatDate, formatDateTime, fromDateTimeLocalValue, fromNow, toDateTimeLocalValue } from '@/utils/date'
 import { calcEngagement, formatNumber } from '@/utils/format'
 
 export function VideoDetail() {
@@ -26,23 +26,19 @@ export function VideoDetail() {
   const tags = useAppStore(s => s.data?.tags ?? [])
   const scripts = useAppStore(s => s.data?.scripts ?? [])
   const metrics = useAppStore(s => s.data?.metrics ?? [])
-  const videoRelations = useAppStore(s => s.data?.videoRelations ?? [])
   const violationReasons = useAppStore(s => s.data?.settings.violationReasons ?? ['违反社区公约', '涉嫌第三方导流'])
-  const skipReasons = useAppStore(s => s.data?.settings.skipReasons ?? ['该平台不适合此类内容', '本期跳过发布'])
   const hidePromotionCost = useAppStore(s => s.data?.settings.hidePromotionCost ?? false)
   const hideCommercialAmount = useAppStore(s => s.data?.settings.hideCommercialAmount ?? false)
   const updateVideo = useAppStore(s => s.updateVideo)
-  const moveVideo = useAppStore(s => s.moveVideo)
   const deleteVideo = useAppStore(s => s.deleteVideo)
   const addMetric = useAppStore(s => s.addMetric)
   const deleteMetric = useAppStore(s => s.deleteMetric)
   const setPlatformEntry = useAppStore(s => s.setPlatformEntry)
   const updatePlatformPublishedAt = useAppStore(s => s.updatePlatformPublishedAt)
-  const updatePromotionCost = useAppStore(s => s.updatePromotionCost)
+  const addPromotionRecord = useAppStore(s => s.addPromotionRecord)
+  const updatePromotionRecord = useAppStore(s => s.updatePromotionRecord)
+  const deletePromotionRecord = useAppStore(s => s.deletePromotionRecord)
   const updateVideoCover = useAppStore(s => s.updateVideoCover)
-  const addVideoRelation = useAppStore(s => s.addVideoRelation)
-  const updateVideoRelation = useAppStore(s => s.updateVideoRelation)
-  const deleteVideoRelation = useAppStore(s => s.deleteVideoRelation)
   const douyinRecords = useAppStore(s => s.data?.douyinRecords ?? [])
   const shipinhaoRecords = useAppStore(s => s.data?.shipinhaoRecords ?? [])
   const xiaohongshuRecords = useAppStore(s => s.data?.xiaohongshuRecords ?? [])
@@ -134,10 +130,6 @@ export function VideoDetail() {
   const [titleValue, setTitleValue] = useState(video?.title ?? '')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [metricModal, setMetricModal] = useState(false)
-  const [relationModal, setRelationModal] = useState(false)
-  const [relationSearch, setRelationSearch] = useState('')
-  const [relationTargetId, setRelationTargetId] = useState('')
-  const [relationNote, setRelationNote] = useState('')
   const [metricForm, setMetricForm] = useState({
     platform: 'douyin' as Platform,
     plays: '', likes: '', comments: '', shares: '', saves: '', follows: '', completionRate: '',
@@ -166,12 +158,16 @@ export function VideoDetail() {
     setMetricModal(true)
   }
 
-  const [costDraft, setCostDraft] = useState<Partial<Record<Platform, string>>>({})
   const [commercialAmountDraft, setCommercialAmountDraft] = useState<string | undefined>(undefined)
+  const [promotionModal, setPromotionModal] = useState(false)
+  const [promotionEditingId, setPromotionEditingId] = useState<string | null>(null)
+  const [promotionForm, setPromotionForm] = useState({
+    platform: 'douyin' as Platform,
+    amount: '',
+    spentAt: toDateTimeLocalValue(new Date().toISOString()),
+  })
 
   // Platform modals
-  const [skipModal, setSkipModal] = useState<Platform | null>(null)
-  const [skipReason, setSkipReason] = useState('')
   const [violationModal, setViolationModal] = useState<Platform | null>(null)
   const [violationReason, setViolationReason] = useState('')
 
@@ -182,20 +178,6 @@ export function VideoDetail() {
       </PageContainer>
     )
   }
-
-  const currentIdx = VIDEO_STATUS_ORDER.indexOf(video.status)
-  const nextStatus = currentIdx < VIDEO_STATUS_ORDER.length - 2 ? VIDEO_STATUS_ORDER[currentIdx + 1] : null
-  const prevStatus = currentIdx > 0 ? VIDEO_STATUS_ORDER[currentIdx - 1] : null
-  const relatedRelations = videoRelations.filter(
-    r => r.fromVideoId === video.id || r.toVideoId === video.id,
-  )
-  const relatedVideoIds = new Set(
-    relatedRelations.map(r => r.fromVideoId === video.id ? r.toVideoId : r.fromVideoId),
-  )
-  const relationCandidates = videos.filter(candidate => {
-    if (candidate.id === video.id || relatedVideoIds.has(candidate.id)) return false
-    return candidate.title.toLowerCase().includes(relationSearch.trim().toLowerCase())
-  })
 
   const handleTitleSave = () => {
     if (titleValue.trim() && titleValue !== video.title) {
@@ -220,19 +202,6 @@ export function VideoDetail() {
     setMetricModal(false)
   }
 
-  const closeRelationModal = () => {
-    setRelationModal(false)
-    setRelationSearch('')
-    setRelationTargetId('')
-    setRelationNote('')
-  }
-
-  const handleAddRelation = () => {
-    if (!relationTargetId) return
-    addVideoRelation(video.id, relationTargetId, relationNote)
-    closeRelationModal()
-  }
-
   const handleCommercialAmountBlur = () => {
     if (commercialAmountDraft === undefined) return
     const parsed = parseFloat(commercialAmountDraft)
@@ -240,7 +209,40 @@ export function VideoDetail() {
     setCommercialAmountDraft(undefined)
   }
 
-  const statusOrderFiltered = VIDEO_STATUS_ORDER.filter(s => s !== 'archived')
+  const openNewPromotion = () => {
+    const firstPublishedPlatform = video.platforms.find(platform => platform.status === 'published')?.platform
+    setPromotionEditingId(null)
+    setPromotionForm({
+      platform: firstPublishedPlatform ?? 'douyin',
+      amount: '',
+      spentAt: toDateTimeLocalValue(new Date().toISOString()),
+    })
+    setPromotionModal(true)
+  }
+
+  const openEditPromotion = (recordId: string) => {
+    const record = video.promotionRecords?.find(item => item.id === recordId)
+    if (!record) return
+    setPromotionEditingId(record.id)
+    setPromotionForm({
+      platform: record.platform,
+      amount: String(record.amount),
+      spentAt: toDateTimeLocalValue(record.spentAt),
+    })
+    setPromotionModal(true)
+  }
+
+  const handleSavePromotion = () => {
+    const amount = Number(promotionForm.amount)
+    if (!Number.isFinite(amount) || amount <= 0 || !promotionForm.spentAt) return
+    const spentAt = fromDateTimeLocalValue(promotionForm.spentAt)
+    if (promotionEditingId) {
+      updatePromotionRecord(video.id, promotionEditingId, promotionForm.platform, amount, spentAt)
+    } else {
+      addPromotionRecord(video.id, promotionForm.platform, amount, spentAt)
+    }
+    setPromotionModal(false)
+  }
 
   return (
     <PageContainer
@@ -290,65 +292,8 @@ export function VideoDetail() {
           )}
         </div>
 
-        {/* Status workflow */}
-        <div style={{
-          padding: '16px 20px', borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)',
-        }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>工作流进度</p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-            {statusOrderFiltered.map((s, i) => {
-              const currentI = VIDEO_STATUS_ORDER.indexOf(video.status)
-              const thisI = VIDEO_STATUS_ORDER.indexOf(s)
-              const done = thisI < currentI
-              const active = s === video.status
-              return (
-                <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <button
-                    onClick={() => moveVideo(video.id, s)}
-                    style={{
-                      padding: '4px 10px', borderRadius: 99, fontSize: 12, fontWeight: 500,
-                      cursor: 'pointer', transition: 'all .12s',
-                      background: active ? 'var(--accent)' : 'var(--bg-elevated)',
-                      color: active ? '#fff' : 'var(--text-secondary)',
-                      border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                      textDecoration: done ? 'line-through' : 'none',
-                    }}
-                    onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}
-                    onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = done ? 'var(--text-tertiary)' : 'var(--text-tertiary)' }}
-                  >
-                    {VIDEO_STATUS_LABELS[s]}
-                  </button>
-                  {i < statusOrderFiltered.length - 1 && (
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                      <path d="M3 2l4 3-4 3" stroke="var(--text-tertiary)" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-            {prevStatus && (
-              <Button variant="secondary" size="sm" onClick={() => moveVideo(video.id, prevStatus)}>
-                ← 退回「{VIDEO_STATUS_LABELS[prevStatus]}」
-              </Button>
-            )}
-            {nextStatus && (
-              <Button variant="primary" size="sm" onClick={() => moveVideo(video.id, nextStatus)}>
-                推进到「{VIDEO_STATUS_LABELS[nextStatus]}」→
-              </Button>
-            )}
-            {video.status !== 'archived' && (
-              <Button variant="ghost" size="sm" onClick={() => moveVideo(video.id, 'archived')}>
-                归档
-              </Button>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(320px, 360px)', gap: 20, alignItems: 'start' }}>
-          {/* Left col */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 360px) minmax(0, 1fr)', gap: 20, alignItems: 'start' }}>
+          {/* Details sidebar */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
             {/* Cover images */}
             <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
@@ -377,16 +322,6 @@ export function VideoDetail() {
                   width={160}
                 />
               </div>
-            </div>
-
-            <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
-              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>视频简介</p>
-              <Textarea
-                value={video.description ?? ''}
-                onChange={e => updateVideo(video.id, { description: e.target.value })}
-                placeholder="视频核心内容或亮点…"
-                rows={4}
-              />
             </div>
 
             <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
@@ -467,57 +402,6 @@ export function VideoDetail() {
                   value={video.scriptId ?? ''}
                   onChange={e => updateVideo(video.id, { scriptId: e.target.value || undefined })}
                 />
-              )}
-            </div>
-
-            <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>相关视频</p>
-                <Button variant="secondary" size="sm" onClick={() => setRelationModal(true)}>关联视频</Button>
-              </div>
-              {relatedRelations.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {relatedRelations.map(relation => {
-                    const relatedVideoId = relation.fromVideoId === video.id ? relation.toVideoId : relation.fromVideoId
-                    const relatedVideo = videos.find(v => v.id === relatedVideoId)
-                    if (!relatedVideo) return null
-                    return (
-                      <div
-                        key={relation.id}
-                        style={{
-                          padding: '10px 12px', borderRadius: 8,
-                          border: '1px solid var(--border-subtle)',
-                          background: 'var(--bg-elevated)',
-                          display: 'flex', flexDirection: 'column', gap: 8,
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>
-                              {relatedVideo.title}
-                            </p>
-                            <div style={{ marginTop: 4 }}>
-                              <StatusBadge status={relatedVideo.status} />
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                            <Button variant="ghost" size="sm" onClick={() => navigate(`/videos/${relatedVideo.id}`)}>查看</Button>
-                            <Button variant="danger" size="sm" onClick={() => deleteVideoRelation(relation.id)}>移除</Button>
-                          </div>
-                        </div>
-                        <Textarea
-                          defaultValue={relation.note ?? ''}
-                          rows={2}
-                          placeholder="记录复拍、变体或跟进原因…"
-                          onBlur={e => updateVideoRelation(relation.id, e.target.value)}
-                          style={{ fontSize: 12, minHeight: 56 }}
-                        />
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 0' }}>暂无相关视频</p>
               )}
             </div>
 
@@ -619,7 +503,7 @@ export function VideoDetail() {
                           </span>
                         )}
 
-                        {/* Actions — 三个状态平级，任意切换 */}
+                        {/* Platform actions */}
                         <div style={{ display: 'flex', gap: 4 }}>
                           {(!pub || status !== 'published') && (
                             <ActionBtn
@@ -638,11 +522,11 @@ export function VideoDetail() {
                               onClick={() => { setViolationReason(violationReasons[0] ?? ''); setViolationModal(platform) }}
                             />
                           )}
-                          {(!pub || status !== 'skipped') && (
+                          {pub && (
                             <ActionBtn
-                              label="已跳过"
+                              label="清除"
                               color="var(--text-tertiary)"
-                              onClick={() => { setSkipReason(skipReasons[0] ?? ''); setSkipModal(platform) }}
+                              onClick={() => setPlatformEntry(video.id, platform, null)}
                             />
                           )}
                         </div>
@@ -669,36 +553,6 @@ export function VideoDetail() {
                               onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)' }}
                             />
                           </label>
-                          {!hidePromotionCost && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6 }}>
-                            <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>¥</span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              placeholder="投放费用（选填）"
-                              value={costDraft[platform] ?? (pub.promotionCost != null ? String(pub.promotionCost) : '')}
-                              onChange={e => setCostDraft(d => ({ ...d, [platform]: e.target.value }))}
-                              onBlur={() => {
-                                const raw = costDraft[platform]
-                                if (raw === undefined) return
-                                const parsed = parseFloat(raw)
-                                updatePromotionCost(video.id, platform, isNaN(parsed) || parsed <= 0 ? undefined : parsed)
-                                setCostDraft(d => { const n = { ...d }; delete n[platform]; return n })
-                              }}
-                              style={{
-                                width: 130, height: 24, padding: '0 8px', borderRadius: 6, fontSize: 11,
-                                border: '1px solid var(--border-subtle)', background: 'var(--bg-base)',
-                                color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit',
-                              }}
-                              onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent)' }}
-                              onBlurCapture={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)' }}
-                            />
-                            {pub.promotionCost != null && pub.promotionCost > 0 && costDraft[platform] === undefined && (
-                              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>已记录</span>
-                            )}
-                          </div>
-                          )}
                         </div>
                       )}
                       {pub && status === 'violated' && pub.violation && (
@@ -706,16 +560,52 @@ export function VideoDetail() {
                           {pub.violation.reason}
                         </p>
                       )}
-                      {pub && status === 'skipped' && pub.skipReason && (
-                        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, lineHeight: 1.5 }}>
-                          {pub.skipReason}
-                        </p>
-                      )}
                     </div>
                   )
                 })}
               </div>
             </div>
+
+            {!hidePromotionCost && (
+              <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>投放记录</p>
+                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                      共 {(video.promotionRecords ?? []).length} 笔 · ¥{(video.promotionRecords ?? []).reduce((sum, record) => sum + record.amount, 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <Button variant="secondary" size="sm" onClick={openNewPromotion}>+ 新增投放</Button>
+                </div>
+                {(video.promotionRecords ?? []).length > 0 ? (
+                  <div style={{ overflow: 'hidden', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+                    {[...(video.promotionRecords ?? [])]
+                      .sort((a, b) => b.spentAt.localeCompare(a.spentAt))
+                      .map((record, index, records) => (
+                        <div
+                          key={record.id}
+                          style={{
+                            display: 'grid', gridTemplateColumns: 'minmax(110px, 1fr) 120px 100px',
+                            alignItems: 'center', gap: 12, padding: '10px 12px',
+                            borderBottom: index < records.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                            background: 'var(--bg-elevated)',
+                          }}
+                        >
+                          <PlatformIcon platform={record.platform} size={15} showLabel />
+                          <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{formatDateTime(record.spentAt)}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>¥{record.amount.toLocaleString()}</span>
+                            <button onClick={() => openEditPromotion(record.id)} style={{ border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 11, cursor: 'pointer', padding: 0 }}>编辑</button>
+                            <button onClick={() => deletePromotionRecord(video.id, record.id)} style={{ border: 'none', background: 'transparent', color: 'var(--danger)', fontSize: 11, cursor: 'pointer', padding: 0 }}>删除</button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 0' }}>暂无投放记录</p>
+                )}
+              </div>
+            )}
 
             <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
               <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>备注</p>
@@ -812,67 +702,6 @@ export function VideoDetail() {
         />}
       </div>
 
-      {/* Relation modal */}
-      <Modal
-        open={relationModal}
-        onClose={closeRelationModal}
-        title="关联视频"
-        size="md"
-        footer={
-          <>
-            <Button variant="ghost" onClick={closeRelationModal}>取消</Button>
-            <Button variant="primary" onClick={handleAddRelation} disabled={!relationTargetId}>保存</Button>
-          </>
-        }
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Input
-            label="搜索视频"
-            value={relationSearch}
-            placeholder="输入标题关键词"
-            onChange={e => setRelationSearch(e.target.value)}
-          />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflowY: 'auto' }}>
-            {relationCandidates.length > 0 ? relationCandidates.map(candidate => {
-              const selected = candidate.id === relationTargetId
-              return (
-                <button
-                  key={candidate.id}
-                  onClick={() => setRelationTargetId(candidate.id)}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '9px 10px', borderRadius: 8,
-                    border: `1px solid ${selected ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                    background: selected ? 'var(--accent-alpha)' : 'var(--bg-elevated)',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer', textAlign: 'left',
-                    transition: 'border-color .12s, background .12s',
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {candidate.title}
-                    </p>
-                    <div style={{ marginTop: 4 }}>
-                      <StatusBadge status={candidate.status} />
-                    </div>
-                  </div>
-                </button>
-              )
-            }) : (
-              <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 0' }}>没有可关联的视频</p>
-            )}
-          </div>
-          <Textarea
-            label="备注"
-            value={relationNote}
-            placeholder="例如：违规后重发、同主题复拍、爆款跟进…"
-            rows={3}
-            onChange={e => setRelationNote(e.target.value)}
-          />
-        </div>
-      </Modal>
-
       {/* Metric modal */}
       <Modal
         open={metricModal}
@@ -909,38 +738,51 @@ export function VideoDetail() {
         </div>
       </Modal>
 
-      {/* Skip modal */}
+      {/* Promotion record modal */}
       <Modal
-        open={skipModal !== null}
-        onClose={() => setSkipModal(null)}
-        title={`跳过 · ${skipModal ? PLATFORM_LABELS[skipModal] : ''}`}
-        size="sm"
+        open={promotionModal}
+        onClose={() => setPromotionModal(false)}
+        title={promotionEditingId ? '编辑投放记录' : '新增投放记录'}
+        size="md"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setSkipModal(null)}>取消</Button>
+            <Button variant="ghost" onClick={() => setPromotionModal(false)}>取消</Button>
             <Button
               variant="primary"
-              disabled={!skipReason}
-              onClick={() => {
-                if (!skipModal) return
-                setPlatformEntry(video.id, skipModal, {
-                  status: 'skipped',
-                  skipReason: skipReason || undefined,
-                })
-                setSkipModal(null)
-              }}
+              disabled={!promotionForm.amount || Number(promotionForm.amount) <= 0 || !promotionForm.spentAt}
+              onClick={handleSavePromotion}
             >
-              确认跳过
+              保存
             </Button>
           </>
         }
       >
-        <Select
-          label="跳过原因"
-          options={skipReasons.map(r => ({ value: r, label: r }))}
-          value={skipReason}
-          onChange={e => setSkipReason(e.target.value)}
-        />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Select
+            label="投放平台"
+            options={ALL_PLATFORMS.map(platform => ({ value: platform, label: PLATFORM_LABELS[platform] }))}
+            value={promotionForm.platform}
+            onChange={e => setPromotionForm(form => ({ ...form, platform: e.target.value as Platform }))}
+          />
+          <Input
+            label="投放金额（元）"
+            type="number"
+            min="0"
+            step="1"
+            placeholder="0"
+            value={promotionForm.amount}
+            onChange={e => setPromotionForm(form => ({ ...form, amount: e.target.value }))}
+            autoFocus
+          />
+          <div style={{ gridColumn: '1 / -1' }}>
+            <Input
+              label="投放时间"
+              type="datetime-local"
+              value={promotionForm.spentAt}
+              onChange={e => setPromotionForm(form => ({ ...form, spentAt: e.target.value }))}
+            />
+          </div>
+        </div>
       </Modal>
 
       {/* Violation modal */}

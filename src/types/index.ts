@@ -11,11 +11,19 @@ export type VideoStatus =
 
 export type TopicStatus = 'inspiration' | 'adopted' | 'in_progress' | 'done'
 
-export type PlatformPublishStatus = 'published' | 'violated' | 'skipped'
+export type PlatformPublishStatus = 'published' | 'violated'
 
 export interface ViolationInfo {
   reason: string
   reportedAt: string
+}
+
+export interface PromotionRecord {
+  id: string
+  platform: Platform
+  amount: number
+  spentAt: string
+  createdAt: string
 }
 
 export interface Tag {
@@ -38,8 +46,6 @@ export interface PlatformPublish {
   url?: string
   platformVideoId?: string
   violation?: ViolationInfo
-  skipReason?: string
-  promotionCost?: number
 }
 
 export type ShootingFormat =
@@ -85,6 +91,7 @@ export interface Video {
   topicId?: string
   statusHistory: StatusHistoryEntry[]
   platforms: PlatformPublish[]
+  promotionRecords?: PromotionRecord[]
   thumbnailNote?: string
   duration?: number
   description?: string
@@ -149,7 +156,6 @@ export interface AppSettings {
   theme: 'dark' | 'light'
   defaultPlatforms: Platform[]
   violationReasons: string[]
-  skipReasons: string[]
   hidePromotionCost?: boolean
   hideCommercialAmount?: boolean
 }
@@ -272,11 +278,9 @@ export const ALL_PLATFORMS: Platform[] = ['douyin', 'xiaohongshu', 'shipinhao']
 export const PLATFORM_STATUS_LABELS: Record<PlatformPublishStatus, string> = {
   published: '已发布',
   violated: '已违规',
-  skipped: '已跳过',
 }
 
 export const PLATFORM_STATUS_COLORS: Record<PlatformPublishStatus, string> = {
   published: '#10B981',
   violated: '#EF4444',
-  skipped: '#9CA3AF',
 }
