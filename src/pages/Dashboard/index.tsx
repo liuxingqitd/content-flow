@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ResponsiveContainer, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts'
 import { useAppStore } from '@/store/appStore'
@@ -7,10 +7,26 @@ import { StatusBadge } from '@/components/StatusBadge'
 import type { VideoStatus } from '@/types'
 import { VIDEO_STATUS_LABELS, VIDEO_STATUS_ORDER } from '@/types'
 import { fromNow, formatDate } from '@/utils/date'
-import { buildWeeklyPublishTrend } from './weeklyPublishTrend'
+import {
+  buildMonthlyCommercialTrend,
+  buildPublishTrend,
+  type PublishTrendGranularity,
+} from './dashboardTrends'
+
+const currencyFormatter = new Intl.NumberFormat('zh-CN', {
+  style: 'currency',
+  currency: 'CNY',
+  maximumFractionDigits: 0,
+})
+
+const compactCurrencyFormatter = new Intl.NumberFormat('zh-CN', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
 
 export function Dashboard() {
   const navigate = useNavigate()
+  const [publishTrendGranularity, setPublishTrendGranularity] = useState<PublishTrendGranularity>('week')
   const videos = useAppStore(s => s.data?.videos ?? [])
   const topics = useAppStore(s => s.data?.topics ?? [])
   const scripts = useAppStore(s => s.data?.scripts ?? [])
@@ -47,46 +63,21 @@ export function Dashboard() {
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear
   })
 
-  const monthlyPromotionCost = useMemo(() => {
-    return videos.reduce((total, video) => {
-      return total + (video.promotionRecords ?? []).reduce((sum, record) => {
-        const date = new Date(record.spentAt)
-        if (date.getMonth() !== currentMonth || date.getFullYear() !== currentYear) {
-          return sum
-        }
-        return sum + record.amount
-      }, 0)
-    }, 0)
-  }, [videos, currentMonth, currentYear])
-
-  const monthlyCommercialAmount = useMemo(() => {
-    return videos.reduce((total, video) => {
-      const amount = video.isCommercial ? video.commercialAmount ?? 0 : 0
-      if (amount <= 0) return total
-
-      const firstPublishedAt = video.platforms
-        .map(platform => platform.publishedAt)
-        .filter((publishedAt): publishedAt is string => Boolean(publishedAt))
-        .sort((a, b) => a.localeCompare(b))[0]
-      const date = new Date(firstPublishedAt ?? video.createdAt)
+  const monthlyPromotionCost = videos.reduce((total, video) => {
+    return total + (video.promotionRecords ?? []).reduce((sum, record) => {
+      const date = new Date(record.spentAt)
       if (date.getMonth() !== currentMonth || date.getFullYear() !== currentYear) {
-        return total
+        return sum
       }
-
-      return total + amount
+      return sum + record.amount
     }, 0)
-  }, [videos, currentMonth, currentYear])
+  }, 0)
 
-  const formattedMonthlyPromotionCost = new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: 'CNY',
-    maximumFractionDigits: 0,
-  }).format(monthlyPromotionCost)
-  const formattedMonthlyCommercialAmount = new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: 'CNY',
-    maximumFractionDigits: 0,
-  }).format(monthlyCommercialAmount)
+  const monthlyCommercialTrend = buildMonthlyCommercialTrend(videos, now)
+  const monthlyCommercialAmount = monthlyCommercialTrend[monthlyCommercialTrend.length - 1]?.amount ?? 0
+
+  const formattedMonthlyPromotionCost = currencyFormatter.format(monthlyPromotionCost)
+  const formattedMonthlyCommercialAmount = currencyFormatter.format(monthlyCommercialAmount)
 
   const pendingTopics = topics.filter(t => t.status === 'inspiration' || t.status === 'adopted')
 
@@ -104,7 +95,10 @@ export function Dashboard() {
     return Object.values(countMap).sort((a, b) => b.count - a.count)
   }, [videos, tags])
 
-  const weeklyPublishTrend = useMemo(() => buildWeeklyPublishTrend(videos), [videos])
+  const publishTrend = useMemo(
+    () => buildPublishTrend(videos, publishTrendGranularity),
+    [videos, publishTrendGranularity],
+  )
 
   const pipelineColors: Record<string, string> = {
     topic: 'var(--status-topic, var(--status-topic-text))',
@@ -259,14 +253,49 @@ export function Dashboard() {
             )}
           </div>
 
-          {/* Weekly publishing trend */}
+          {/* Publishing trend */}
           <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 16 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>每周发布趋势</p>
-            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>最近 12 周首次发布的视频数量</p>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>发布视频趋势</p>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                  最近 12 {publishTrendGranularity === 'week' ? '周' : '个月'}首次发布的视频数量
+                </p>
+              </div>
+              <div style={{ display: 'flex', padding: 2, borderRadius: 'var(--radius-md)', background: 'var(--bg-raised)', border: '1px solid var(--border-subtle)', flexShrink: 0 }}>
+                {([
+                  ['week', '按周'],
+                  ['month', '按月'],
+                ] as const).map(([granularity, label]) => {
+                  const active = publishTrendGranularity === granularity
+                  return (
+                    <button
+                      key={granularity}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setPublishTrendGranularity(granularity)}
+                      style={{
+                        border: 'none',
+                        borderRadius: 'calc(var(--radius-md) - 2px)',
+                        background: active ? 'var(--bg-surface)' : 'transparent',
+                        color: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                        boxShadow: active ? 'var(--shadow-xs)' : 'none',
+                        cursor: 'pointer',
+                        fontSize: 11,
+                        fontWeight: active ? 600 : 500,
+                        padding: '4px 9px',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={weeklyPublishTrend} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
+              <AreaChart data={publishTrend} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="weeklyPublishFill" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="publishTrendFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.3} />
                     <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.03} />
                   </linearGradient>
@@ -276,14 +305,46 @@ export function Dashboard() {
                 <YAxis tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }} allowDecimals={false} tickLine={false} axisLine={false} />
                 <Tooltip
                   contentStyle={tooltipStyle}
-                  labelFormatter={(_, payload) => payload[0]?.payload ? `${payload[0].payload.weekStart} 至 ${payload[0].payload.weekEnd}` : ''}
+                  labelFormatter={(_, payload) => payload[0]?.payload ? `${payload[0].payload.rangeStart} 至 ${payload[0].payload.rangeEnd}` : ''}
                   formatter={(v: unknown) => [`${v} 条`, '发布视频']}
                 />
-                <Area type="monotone" dataKey="count" name="发布视频" stroke="var(--accent)" strokeWidth={2} fill="url(#weeklyPublishFill)" activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="count" name="发布视频" stroke="var(--accent)" strokeWidth={2} fill="url(#publishTrendFill)" activeDot={{ r: 4 }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
+
+        {!hideCommercialAmount && (
+          <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 16 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>月度商单金额趋势</p>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>最近 12 个月按视频首次发布时间归属的商单金额</p>
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={monthlyCommercialTrend} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="commercialTrendFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--success)" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="var(--success)" stopOpacity={0.03} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} tickLine={false} axisLine={false} />
+                <YAxis
+                  tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }}
+                  tickFormatter={(value: number) => `¥${compactCurrencyFormatter.format(value)}`}
+                  tickLine={false}
+                  axisLine={false}
+                  width={56}
+                />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  labelFormatter={(_, payload) => payload[0]?.payload ? payload[0].payload.key : ''}
+                  formatter={(value: unknown) => [currencyFormatter.format(Number(value)), '商单金额']}
+                />
+                <Area type="monotone" dataKey="amount" name="商单金额" stroke="var(--success)" strokeWidth={2} fill="url(#commercialTrendFill)" activeDot={{ r: 4 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
     </PageContainer>
   )
