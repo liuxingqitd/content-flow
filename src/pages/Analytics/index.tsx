@@ -1,9 +1,13 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store/appStore'
 import { PageContainer } from '@/components/layout/PageContainer'
 import type { DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord } from '@/types'
-import { parseXiaohongshuExcel } from '@/services/importXiaohongshu'
+import { parseXiaohongshuExcel, mergeXiaohongshuRecords } from '@/services/importXiaohongshu'
+import { parseDouyinJson, mergeDouyinRecords } from '@/services/importDouyin'
+import { parseShipinhaoJson, mergeShipinhaoRecords } from '@/services/importShipinhao'
+import { now } from '@/utils/date'
+import { genId } from '@/utils/id'
 
 type Platform = 'douyin' | 'shipinhao' | 'xiaohongshu'
 
@@ -319,16 +323,39 @@ function XiaohongshuTable({ records }: { records: XiaohongshuRawRecord[] }) {
   )
 }
 
+// ===== 进度提示 =====
+function ImportToast({ msg, onClose }: { msg: string; onClose: () => void }) {
+  return (
+    <div style={{
+      padding: '10px 16px', marginBottom: 16,
+      borderRadius: 'var(--radius-md)',
+      background: 'var(--success-subtle)',
+      color: 'var(--success)',
+      fontSize: 13,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    }}>
+      <span>{msg}</span>
+      <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--success)', cursor: 'pointer', fontSize: 11, padding: '2px 8px' }}>✕</button>
+    </div>
+  )
+}
+
 // ===== 主页面 =====
 export function Analytics() {
   const douyinRecords = useAppStore(s => s.data?.douyinRecords ?? [])
   const shipinhaoRecords = useAppStore(s => s.data?.shipinhaoRecords ?? [])
   const xiaohongshuRecords = useAppStore(s => s.data?.xiaohongshuRecords ?? [])
+  const videos = useAppStore(s => s.data?.videos ?? [])
+  const setDouyinRecords = useAppStore(s => s.setDouyinRecords)
+  const setShipinhaoRecords = useAppStore(s => s.setShipinhaoRecords)
   const setXiaohongshuRecords = useAppStore(s => s.setXiaohongshuRecords)
   const [platform, setPlatform] = useState<Platform>('douyin')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const dyInputRef = useRef<HTMLInputElement>(null)
+  const sphInputRef = useRef<HTMLInputElement>(null)
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
 
   const handleImportXiaohongshu = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -336,8 +363,10 @@ export function Analytics() {
     setImporting(true)
     setImportError(null)
     try {
-      const records = await parseXiaohongshuExcel(file)
-      setXiaohongshuRecords(records)
+      const incoming = await parseXiaohongshuExcel(file)
+      const { merged, newCount, updatedCount } = mergeXiaohongshuRecords(xiaohongshuRecords, incoming, videos)
+      setXiaohongshuRecords(merged)
+      setToastMsg(`小红书: 新增 ${newCount}，更新 ${updatedCount}`)
       setPlatform('xiaohongshu')
     } catch (err) {
       setImportError(err instanceof Error ? err.message : '导入失败')
@@ -346,6 +375,120 @@ export function Analytics() {
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
+
+  const handleImportDouyin = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    setImportError(null)
+    try {
+      const text = await file.text()
+      let rows: Record<string, string>[]
+      if (file.name.endsWith('.json')) {
+        rows = JSON.parse(text)
+      } else if (file.name.endsWith('.csv')) {
+        rows = parseCSV(text)
+      } else {
+        throw new Error('抖音导入支持 .json 或 .csv 格式，请先用 skill 中的 Python 脚本将 xlsx 转为 JSON')
+      }
+      const incoming = parseDouyinJson(rows as any)
+      const { merged, newCount, updatedCount, autoMatched } = mergeDouyinRecords(douyinRecords, incoming, videos)
+      setDouyinRecords(merged)
+      setToastMsg(`抖音: 新增 ${newCount}，更新 ${updatedCount}，自动关联 ${autoMatched} 个视频`)
+      setPlatform('douyin')
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : '导入失败')
+    } finally {
+      setImporting(false)
+      if (dyInputRef.current) dyInputRef.current.value = ''
+    }
+  }
+
+  const handleImportShipinhao = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    setImportError(null)
+    try {
+      const text = await file.text()
+      let rows: Record<string, string>[]
+      if (file.name.endsWith('.json')) {
+        rows = JSON.parse(text)
+      } else if (file.name.endsWith('.csv')) {
+        rows = parseCSV(text)
+      } else {
+        throw new Error('视频号导入支持 .json 或 .csv 格式')
+      }
+      const incoming = parseShipinhaoJson(rows as any)
+      const { merged, newCount, updatedCount, autoMatched } = mergeShipinhaoRecords(shipinhaoRecords, incoming, videos)
+      setShipinhaoRecords(merged)
+      setToastMsg(`视频号: 新增 ${newCount}，更新 ${updatedCount}，自动关联 ${autoMatched} 个视频`)
+      setPlatform('shipinhao')
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : '导入失败')
+    } finally {
+      setImporting(false)
+      if (sphInputRef.current) sphInputRef.current.value = ''
+    }
+  }
+
+  // 一键从 public/data/ 加载 JSON 文件导入
+  const quickImportAll = useCallback(async () => {
+    setImporting(true)
+    setImportError(null)
+    setToastMsg(null)
+    try {
+      const [dyRows, sphRows, xhsRows]: [Record<string, string>[], Record<string, string>[], Record<string, string>[]] =
+        await Promise.all([
+          fetch('/data/douyin_import.json').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
+          fetch('/data/shipinhao_import.json').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
+          fetch('/data/xiaohongshu_import.json').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
+        ])
+
+      const msgs: string[] = []
+
+      // 抖音
+      const dyIncoming = parseDouyinJson(dyRows as any)
+      const dyResult = mergeDouyinRecords(douyinRecords, dyIncoming, videos)
+      setDouyinRecords(dyResult.merged)
+      msgs.push(`抖音: +${dyResult.newCount} 更新${dyResult.updatedCount} 关联${dyResult.autoMatched}`)
+
+      // 视频号
+      const sphIncoming = parseShipinhaoJson(sphRows as any)
+      const sphResult = mergeShipinhaoRecords(shipinhaoRecords, sphIncoming, videos)
+      setShipinhaoRecords(sphResult.merged)
+      msgs.push(`视频号: +${sphResult.newCount} 更新${sphResult.updatedCount} 关联${sphResult.autoMatched}`)
+
+      // 小红书
+      const createdAt = now()
+      const xhsIncoming = xhsRows.map(r => ({
+        id: genId('xhs'),
+        title: r.title || '',
+        publishedAt: parseXhsPublishedAt(r.publishedAt || '') || createdAt,
+        genre: r.genre || '',
+        impressions: parseFloatSafe(r.impressions),
+        views: parseFloatSafe(r.views),
+        coverCtr: parseFloatSafe(r.coverCtr),
+        likes: parseFloatSafe(r.likes),
+        comments: parseFloatSafe(r.comments),
+        saves: parseFloatSafe(r.saves),
+        follows: parseFloatSafe(r.follows),
+        shares: parseFloatSafe(r.shares),
+        avgWatchDuration: parseFloatSafe(r.avgWatchDuration),
+        danmaku: parseFloatSafe(r.danmaku),
+        createdAt,
+      }))
+      const xhsResult = mergeXiaohongshuRecords(xiaohongshuRecords, xhsIncoming, videos)
+      setXiaohongshuRecords(xhsResult.merged)
+      msgs.push(`小红书: +${xhsResult.newCount} 更新${xhsResult.updatedCount} 关联${xhsResult.autoMatched}`)
+
+      setToastMsg(`导入完成！${msgs.join(' | ')}`)
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : '导入失败')
+    } finally {
+      setImporting(false)
+    }
+  }, [douyinRecords, shipinhaoRecords, xiaohongshuRecords, videos, setDouyinRecords, setShipinhaoRecords, setXiaohongshuRecords])
 
   const tabs: { id: Platform; label: string; count: number }[] = [
     { id: 'douyin', label: '抖音', count: douyinRecords.length },
@@ -386,50 +529,52 @@ export function Analytics() {
             </span>
           </button>
         ))}
-        {/* Import button — 小红书 */}
+        {/* Import buttons */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* 一键导入 */}
+          <button
+            onClick={quickImportAll}
+            disabled={importing}
+            style={{
+              padding: '6px 14px', fontSize: 12, fontWeight: 600,
+              border: '1px solid var(--accent)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--accent-subtle)',
+              color: 'var(--accent)',
+              cursor: importing ? 'not-allowed' : 'pointer',
+              opacity: importing ? 0.6 : 1,
+              display: 'flex', alignItems: 'center', gap: 6,
+              transition: 'all var(--duration-fast)',
+            }}
+          >
+            {importing ? '导入中…' : '一键导入'}
+          </button>>
+          {/* 抖音导入 */}
+          {platform === 'douyin' && (
+            <>
+              <input ref={dyInputRef} type="file" accept=".json,.csv" onChange={handleImportDouyin} style={{ display: 'none' }} />
+              <ImportBtn importing={importing} onClick={() => dyInputRef.current?.click()} label="导入JSON/CSV" />
+            </>
+          )}
+          {/* 视频号导入 */}
+          {platform === 'shipinhao' && (
+            <>
+              <input ref={sphInputRef} type="file" accept=".json,.csv" onChange={handleImportShipinhao} style={{ display: 'none' }} />
+              <ImportBtn importing={importing} onClick={() => sphInputRef.current?.click()} label="导入JSON/CSV" />
+            </>
+          )}
+          {/* 小红书导入 */}
           {platform === 'xiaohongshu' && (
             <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleImportXiaohongshu}
-                style={{ display: 'none' }}
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importing}
-                style={{
-                  padding: '6px 14px', fontSize: 12, fontWeight: 500,
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--bg-raised)',
-                  color: 'var(--text-primary)',
-                  cursor: importing ? 'not-allowed' : 'pointer',
-                  opacity: importing ? 0.6 : 1,
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  transition: 'all var(--duration-fast)',
-                }}
-              >
-                {importing ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 0.8s linear infinite' }}>
-                    <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
-                    <path d="M12 2a10 10 0 0 1 10 10" />
-                  </svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="17 8 12 3 7 8" />
-                    <line x1="12" y1="3" x2="12" y2="15" />
-                  </svg>
-                )}
-                {importing ? '导入中…' : '导入Excel'}
-              </button>
+              <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleImportXiaohongshu} style={{ display: 'none' }} />
+              <ImportBtn importing={importing} onClick={() => fileInputRef.current?.click()} label="导入Excel" />
             </>
           )}
         </div>
       </div>
+
+      {/* Toast message */}
+      {toastMsg && <ImportToast msg={toastMsg} onClose={() => setToastMsg(null)} />}
 
       {/* Import error */}
       {importError && (
@@ -480,6 +625,66 @@ export function Analytics() {
       </div>
     </PageContainer>
   )
+}
+
+function ImportBtn({ importing, onClick, label }: { importing: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={importing}
+      style={{
+        padding: '6px 14px', fontSize: 12, fontWeight: 500,
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-md)',
+        background: 'var(--bg-raised)',
+        color: 'var(--text-primary)',
+        cursor: importing ? 'not-allowed' : 'pointer',
+        opacity: importing ? 0.6 : 1,
+        display: 'flex', alignItems: 'center', gap: 6,
+        transition: 'all var(--duration-fast)',
+      }}
+    >
+      {importing ? (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 0.8s linear infinite' }}>
+          <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+          <path d="M12 2a10 10 0 0 1 10 10" />
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" />
+          <line x1="12" y1="3" x2="12" y2="15" />
+        </svg>
+      )}
+      {importing ? '导入中…' : label}
+    </button>
+  )
+}
+
+function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.trim().split(/\r?\n/)
+  if (lines.length < 2) return []
+  const headers = lines[0].split(',').map(h => h.trim())
+  const result: Record<string, string>[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(',').map(v => v.trim())
+    const row: Record<string, string> = {}
+    headers.forEach((h, j) => { row[h] = values[j] || '' })
+    if (Object.values(row).some(v => v)) result.push(row)
+  }
+  return result
+}
+
+function parseFloatSafe(v: string | undefined): number {
+  if (!v) return 0
+  const n = parseFloat(v)
+  return Number.isNaN(n) ? 0 : n
+}
+
+function parseXhsPublishedAt(raw: string): string {
+  const m = raw.match(/(\d{4})年(\d{2})月(\d{2})日(\d{2})时(\d{2})分(\d{2})秒/)
+  if (!m) return ''
+  return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}.000Z`
 }
 
 function DeleteBtn({ onClick }: { onClick: () => void }) {

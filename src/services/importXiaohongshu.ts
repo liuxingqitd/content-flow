@@ -1,7 +1,15 @@
 import * as XLSX from 'xlsx'
-import type { XiaohongshuRawRecord } from '@/types'
+import type { XiaohongshuRawRecord, Video } from '@/types'
 import { genId } from '@/utils/id'
 import { now } from '@/utils/date'
+
+function normalizeTitle(t: string): string {
+  return t
+    .replace(/[\p{Emoji_Presentation}\p{Emoji}‍]+/gu, '')
+    .replace(/[^\w一-鿿]+/g, '')
+    .toLowerCase()
+    .trim()
+}
 
 /**
  * 解析 "2026年06月25日19时09分07秒" → ISO 8601 字符串
@@ -110,4 +118,64 @@ export function parseXiaohongshuExcel(file: File): Promise<XiaohongshuRawRecord[
     reader.onerror = () => reject(new Error('读取文件失败'))
     reader.readAsArrayBuffer(file)
   })
+}
+
+export function mergeXiaohongshuRecords(
+  existing: XiaohongshuRawRecord[],
+  incoming: XiaohongshuRawRecord[],
+  videos: Video[],
+): { merged: XiaohongshuRawRecord[]; autoMatched: number; newCount: number; updatedCount: number } {
+  const result = [...existing]
+  const existingMap = new Map<string, XiaohongshuRawRecord>()
+  for (const r of existing) {
+    existingMap.set(normalizeTitle(r.title), r)
+  }
+
+  let newCount = 0
+  let updatedCount = 0
+
+  for (const rec of incoming) {
+    const key = normalizeTitle(rec.title)
+    const match = existingMap.get(key)
+    if (match) {
+      const savedId = match.id
+      const savedCreatedAt = match.createdAt
+      const savedVideoId = match.videoId
+      Object.assign(match, rec, { id: savedId, createdAt: savedCreatedAt, videoId: savedVideoId })
+      updatedCount++
+    } else {
+      const videoId = matchToVideo(rec.title, videos)
+      if (videoId) rec.videoId = videoId
+      result.push(rec)
+      newCount++
+    }
+  }
+
+  let autoMatched = 0
+  for (const r of result) {
+    if (!r.videoId) {
+      const vid = matchToVideo(r.title, videos)
+      if (vid) {
+        r.videoId = vid
+        autoMatched++
+      }
+    }
+  }
+
+  return { merged: result, autoMatched, newCount, updatedCount }
+}
+
+function matchToVideo(title: string, videos: Video[]): string | undefined {
+  const nt = normalizeTitle(title)
+  if (!nt) return undefined
+  for (const v of videos) {
+    if (normalizeTitle(v.title) === nt) return v.id
+  }
+  if (nt.length >= 6) {
+    for (const v of videos) {
+      const vt = normalizeTitle(v.title)
+      if (vt.length >= 6 && (vt.includes(nt) || nt.includes(vt))) return v.id
+    }
+  }
+  return undefined
 }
