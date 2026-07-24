@@ -73,56 +73,61 @@ function normalizeTitle(t: string): string {
 }
 
 export function mergeShipinhaoRecords(
-  existing: ShipinhaoRawRecord[],
+  existing: readonly ShipinhaoRawRecord[],
   incoming: ShipinhaoRawRecord[],
   videos: Video[],
 ): { merged: ShipinhaoRawRecord[]; autoMatched: number; newCount: number; updatedCount: number } {
-  const result = [...existing]
-  const existingByDesc = new Map<string, ShipinhaoRawRecord>()
-  const existingByPlatformId = new Map<string, ShipinhaoRawRecord>()
-  for (const r of existing) {
-    existingByDesc.set(normalizeTitle(r.description), r)
-    if (r.videoId) existingByPlatformId.set(r.videoId, r)
+  const base = existing.map(r => ({ ...r }))
+  const existingByDesc = new Map<string, number>()
+  const existingByPlatformId = new Map<string, number>()
+  for (let i = 0; i < base.length; i++) {
+    existingByDesc.set(normalizeTitle(base[i].description), i)
+    if (base[i].videoId) existingByPlatformId.set(base[i].videoId, i)
   }
 
+  const processedIdx = new Set<number>()
   let newCount = 0
   let updatedCount = 0
+  const additions: ShipinhaoRawRecord[] = []
 
   for (const rec of incoming) {
-    // 视频号优先按平台原生 videoId 匹配
     const platformIdMatch = rec.videoId ? existingByPlatformId.get(rec.videoId) : undefined
     const descMatch = existingByDesc.get(normalizeTitle(rec.description))
+    const existingIdx = platformIdMatch ?? descMatch
 
-    const match = platformIdMatch || descMatch
-    if (match) {
-      const savedId = match.id
-      const savedCreatedAt = match.createdAt
-      // 保留用户手动关联的视频库 videoId（平台原生 videoId 字段是另一回事）
-      // 系统 videoId 关联字段也是同名 videoId，导入后用户可手动修改
-      Object.assign(match, rec, { id: savedId, createdAt: savedCreatedAt, videoId: match.videoId || rec.videoId })
+    if (existingIdx !== undefined) {
+      processedIdx.add(existingIdx)
+      const old = base[existingIdx]
+      base[existingIdx] = {
+        ...rec,
+        id: old.id,
+        createdAt: old.createdAt,
+        videoId: old.videoId || rec.videoId,
+      }
       updatedCount++
     } else {
-      result.push(rec)
+      additions.push({ ...rec })
       newCount++
     }
   }
 
-  // 尝试匹配视频库（对 videoId 为平台原生ID 的记录，不覆盖）
   let autoMatched = 0
-  for (const r of result) {
-    // 视频号的 videoId 是平台原生 ID，不应被覆盖为系统 videoId
-    // 除非已有系统 videoId（格式如 'vid_xxx'）
-    const hasSystemVideoId = r.videoId && r.videoId.startsWith('vid_')
-    if (!hasSystemVideoId) {
-      const systemId = matchToVideo(r.description, videos)
-      if (systemId) {
-        r.videoId = systemId
-        autoMatched++
+  const merged = [
+    ...base.map(r => {
+      const hasSystemVideoId = r.videoId && r.videoId.startsWith('vid_')
+      if (!hasSystemVideoId) {
+        const systemId = matchToVideo(r.description, videos)
+        if (systemId) {
+          autoMatched++
+          return { ...r, videoId: systemId }
+        }
       }
-    }
-  }
+      return r
+    }),
+    ...additions,
+  ]
 
-  return { merged: result, autoMatched, newCount, updatedCount }
+  return { merged, autoMatched, newCount, updatedCount }
 }
 
 function matchToVideo(description: string, videos: Video[]): string | undefined {

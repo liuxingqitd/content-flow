@@ -68,50 +68,62 @@ function normalizeTitle(t: string): string {
 }
 
 export function mergeDouyinRecords(
-  existing: DouyinRawRecord[],
+  existing: readonly DouyinRawRecord[],
   incoming: DouyinRawRecord[],
   videos: Video[],
 ): { merged: DouyinRawRecord[]; autoMatched: number; newCount: number; updatedCount: number } {
-  const result = [...existing]
-  const existingMap = new Map<string, DouyinRawRecord>()
-  for (const r of existing) {
-    existingMap.set(normalizeTitle(r.title), r)
+  const base = existing.map(r => ({ ...r }))
+  const existingByKey = new Map<string, number>()
+  for (let i = 0; i < base.length; i++) {
+    existingByKey.set(normalizeTitle(base[i].title), i)
   }
 
+  const processedKeys = new Set<string>()
   let newCount = 0
   let updatedCount = 0
+  const additions: DouyinRawRecord[] = []
 
   for (const rec of incoming) {
     const key = normalizeTitle(rec.title)
-    const match = existingMap.get(key)
-    if (match) {
-      // 更新数据指标，保留 id、createdAt、videoId
-      const savedId = match.id
-      const savedCreatedAt = match.createdAt
-      const savedVideoId = match.videoId
-      Object.assign(match, rec, { id: savedId, createdAt: savedCreatedAt, videoId: savedVideoId })
+    if (!key) continue
+    processedKeys.add(key)
+    const existingIdx = existingByKey.get(key)
+    if (existingIdx !== undefined) {
+      const old = base[existingIdx]
+      base[existingIdx] = {
+        ...rec,
+        id: old.id,
+        createdAt: old.createdAt,
+        videoId: old.videoId || matchToVideo(rec.title, videos) || undefined,
+      }
       updatedCount++
     } else {
-      // 尝试匹配视频库
-      const videoId = matchToVideo(rec.title, videos)
-      if (videoId) rec.videoId = videoId
-      result.push(rec)
+      additions.push({
+        ...rec,
+        videoId: matchToVideo(rec.title, videos) || undefined,
+      })
       newCount++
     }
   }
 
+  // 自动匹配已有但未关联的记录
   let autoMatched = 0
-  for (const r of result) {
-    if (!r.videoId) {
-      const vid = matchToVideo(r.title, videos)
-      if (vid) {
-        r.videoId = vid
-        autoMatched++
+  const merged = [
+    ...base.map(r => {
+      const key = normalizeTitle(r.title)
+      if (!r.videoId && !processedKeys.has(key)) {
+        const vid = matchToVideo(r.title, videos)
+        if (vid) {
+          autoMatched++
+          return { ...r, videoId: vid }
+        }
       }
-    }
-  }
+      return r
+    }),
+    ...additions,
+  ]
 
-  return { merged: result, autoMatched, newCount, updatedCount }
+  return { merged, autoMatched, newCount, updatedCount }
 }
 
 function matchToVideo(title: string, videos: Video[]): string | undefined {
