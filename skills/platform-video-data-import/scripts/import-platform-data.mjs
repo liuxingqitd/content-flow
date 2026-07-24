@@ -140,6 +140,14 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function toPlaybackNumber(value, label) {
+  const text = String(value ?? '').replaceAll(',', '').trim()
+  if (!text) fail(`${label}为空，无法判断是否应导入`)
+  const parsed = Number(text)
+  if (!Number.isFinite(parsed) || parsed < 0) fail(`${label}不是有效的非负数: ${value}`)
+  return parsed
+}
+
 function toRatio(value) {
   const text = String(value ?? '').trim()
   const parsed = toNumber(text.replace('%', ''))
@@ -222,9 +230,9 @@ async function loadRows(file, projectDir) {
 }
 
 const HEADER_HINTS = {
-  douyin: ['作品名称', '播放量', '5s完播率'],
-  xiaohongshu: ['笔记标题', '曝光', '观看量'],
-  shipinhao: ['视频描述', '视频id', '推荐'],
+  douyin: ['作品名称', '体裁', '播放量', '5s完播率'],
+  xiaohongshu: ['笔记标题', '体裁', '曝光', '观看量'],
+  shipinhao: ['视频描述', '视频id', '播放量', '推荐'],
 }
 
 function findHeader(rows) {
@@ -264,7 +272,7 @@ function parseRecord(platform, row, importedAt) {
       publishedAt: canonicalDate(field(row, '发布时间', 'publishedAt')),
       genre: String(field(row, '体裁', 'genre')).trim(),
       status: String(field(row, '审核状态', 'status')).trim(),
-      plays: toNumber(field(row, '播放量', 'plays')),
+      plays: toPlaybackNumber(field(row, '播放量', 'plays'), `抖音《${title}》播放量`),
       completionRate: toRatio(field(row, '完播率', 'completionRate')),
       fiveSecRate: toRatio(field(row, '5s完播率', 'fiveSecRate')),
       coverCtr: String(field(row, '封面点击率', 'coverCtr')).trim() || '-',
@@ -287,7 +295,7 @@ function parseRecord(platform, row, importedAt) {
       publishedAt: canonicalDate(field(row, '首次发布时间', 'publishedAt')),
       genre: String(field(row, '体裁', 'genre')).trim(),
       impressions: toNumber(field(row, '曝光', 'impressions')),
-      views: toNumber(field(row, '观看量', 'views')),
+      views: toPlaybackNumber(field(row, '观看量', 'views'), `小红书《${title}》观看量`),
       coverCtr: toRatio(field(row, '封面点击率', 'coverCtr')),
       likes: toNumber(field(row, '点赞', 'likes')),
       comments: toNumber(field(row, '评论', 'comments')),
@@ -308,7 +316,7 @@ function parseRecord(platform, row, importedAt) {
     publishedAt: canonicalDate(field(row, '发布时间', 'publishedAt'), true),
     completionRate: toRatio(field(row, '完播率', 'completionRate')),
     avgPlayDuration: String(field(row, '平均播放时长', 'avgPlayDuration')).trim(),
-    plays: toNumber(field(row, '播放量', 'plays')),
+    plays: toPlaybackNumber(field(row, '播放量', 'plays'), `视频号《${description}》播放量`),
     recommendations: toNumber(field(row, '推荐', 'recommendations')),
     likes: toNumber(field(row, '喜欢', '点赞', 'likes')),
     comments: toNumber(field(row, '评论量', '评论', 'comments')),
@@ -320,6 +328,20 @@ function parseRecord(platform, row, importedAt) {
     setMomentCover: toNumber(field(row, '设为朋友圈封面', 'setMomentCover')),
     createdAt: importedAt,
   }
+}
+
+function importFilterReasons(platform, record) {
+  const reasons = []
+  const genre = String(record.genre ?? '').trim()
+  const normalizedGenre = normalizeIdentity(genre)
+  const explicitVideoGenre = ['视频', '短视频', '视频作品', '视频笔记'].includes(normalizedGenre)
+    || (normalizedGenre.endsWith('视频') && !normalizedGenre.includes('非视频'))
+  if (platform !== 'shipinhao' && !explicitVideoGenre) {
+    reasons.push(genre ? `体裁为${genre}，本 Skill 仅导入视频` : '体裁为空，无法确认是视频')
+  }
+  const playback = platform === 'xiaohongshu' ? record.views : record.plays
+  if (playback === 0) reasons.push('播放/观看量为 0，按导入规则排除')
+  return reasons
 }
 
 function recordTitle(platform, record) {
@@ -428,14 +450,15 @@ async function prepare(options) {
     for (const record of parsed) {
       const platform = header.platform
       const key = stableKey(platform, record)
-      const existing = lookupKeys(platform, record).map(candidate => existingIndexes[platform].get(candidate)?.record).find(Boolean)
-      const existingLink = existing?.videoId && videoIds.has(existing.videoId) ? existing.videoId : undefined
       const title = recordTitle(platform, record)
-      const candidates = rankCandidates(title, evidence)
+      const filterReasons = importFilterReasons(platform, record)
+      const existing = filterReasons.length ? undefined : lookupKeys(platform, record).map(candidate => existingIndexes[platform].get(candidate)?.record).find(Boolean)
+      const existingLink = existing?.videoId && videoIds.has(existing.videoId) ? existing.videoId : undefined
+      const candidates = filterReasons.length ? [] : rankCandidates(title, evidence)
       const exact = candidates.filter(candidate => candidate.score === 1)
       let decision = { action: 'pending', locked: false, confidence: null, reason: '', evidence: [], runnerUp: null }
-      if (platform === 'douyin' && String(record.genre).includes('图文')) {
-        decision = { action: 'skip', locked: true, confidence: 1, reason: '体裁为图文，本 Skill 仅导入视频', evidence: [record.genre], runnerUp: null }
+      if (filterReasons.length) {
+        decision = { action: 'skip', locked: true, confidence: 1, reason: filterReasons.join('；'), evidence: [record.genre ? `genre=${record.genre}` : '', `playback=${platform === 'xiaohongshu' ? record.views : record.plays}`].filter(Boolean), runnerUp: null }
       } else if (existingLink) {
         decision = { action: 'match', targetVideoId: existingLink, locked: true, confidence: 1, reason: '复用已有有效系统关联', evidence: [`existing raw -> ${existingLink}`], runnerUp: null }
       } else if (exact.length === 1) {

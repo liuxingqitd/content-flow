@@ -14,6 +14,30 @@ The importer reads, but does not change:
 - `scripts.json`
 - `scripts/*.md`
 
+## Eligibility filters
+
+Apply these filters before stable-key lookup, candidate ranking, semantic
+matching, or upsert:
+
+| Platform | Playback field | Video-type field |
+| --- | --- | --- |
+| 抖音 | `播放量` / `plays` | `体裁` / `genre` |
+| 小红书 | `观看量` / `views` | `体裁` / `genre` |
+| 视频号 | `播放量` / `plays` | not present in the current export |
+
+- Skip playback exactly equal to `0`; it commonly represents a violated,
+  hidden, or otherwise invalid video.
+- For 抖音 and 小红书, accept normalized standard video genres (`视频`,
+  `短视频`, `视频作品`, `视频笔记`) and duration labels ending in “视频”, such as
+  `1-3min视频`. Explicitly reject “非视频”; also skip “图文”, unknown values,
+  and empty values. The current 视频号 export is video-specific and does not
+  expose a genre field.
+- Require the playback column. Parse the full cell as a non-negative number;
+  missing, blank, malformed, unit-suffixed, or negative values are errors, not
+  zero-playback skips.
+- Emit a locked `skip` decision with the concrete reason and source evidence.
+  Do not generate AI candidates or write any target record for the row.
+
 ## Stable raw-record keys
 
 Use the strongest available platform identity:

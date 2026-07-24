@@ -8,7 +8,6 @@ description: >
   exports and asks to 导入、更新、覆盖、关联、匹配标题、同步平台数据, even if
   they only say “把这几份最近数据放进系统”. This is a Codex/agent execution
   skill; the in-app prompt-only AI Companion cannot perform filesystem writes.
-compatibility: Requires Node.js 20+, the ContentFlow repository (for its xlsx dependency), and filesystem access to the selected ContentFlow data directory.
 ---
 
 # Platform video data import
@@ -60,8 +59,26 @@ node <skill-dir>/scripts/import-platform-data.mjs prepare \
 
 The runner detects the platform from headers, parses typed metrics, reads
 existing videos/scripts/transcript excerpts and known platform-title aliases,
-then creates ranked candidates. It also records hashes of the sources and
-current target files so a stale plan cannot be applied silently.
+then applies deterministic eligibility filters before creating ranked
+candidates. It also records hashes of the sources and current target files so a
+stale plan cannot be applied silently.
+
+The following rows must be locked as `skip` before title matching or upsert:
+
+- playback is exactly `0`: use 抖音“播放量”, 小红书“观看量”, and
+  视频号“播放量” as the platform-specific playback field;
+- for 抖音 and 小红书, “体裁” is not an explicit video type: accept standard
+  video values (`视频`, `短视频`, `视频作品`, `视频笔记`) and duration labels that
+  end in “视频” such as `1-3min视频`; reject “图文”, “非视频”, unknown values,
+  and empty values. The current 视频号 export is video-specific and has no
+  genre column.
+
+Require the platform playback column and parse it as a complete non-negative
+number. A missing column, blank cell, malformed value, or negative value is a
+source-data error and must stop preparation rather than being treated as zero.
+
+Keep skipped rows in the plan and report as an audit trail, but do not rank AI
+candidates, create Videos, add raw records, or update existing records for them.
 
 If a file cannot be identified or required columns are absent, stop and report
 the exact headers found. Do not guess column positions.
@@ -76,8 +93,9 @@ Read every `pending` plan item and fill its decision. Use:
   platforms for the same underlying video must share one `newGroupId` so only
   one Video is created.
 - `review`: two or more candidates remain genuinely plausible.
-- `skip`: the row is not a video that belongs in the requested import, with a
-  concrete reason.
+- `skip`: the deterministic filters rejected the row, or it otherwise does not
+  belong in the requested video import, with a concrete reason. Never override
+  a locked zero-playback or non-video skip manually.
 
 When matching, reason from the whole content identity, not word overlap alone:
 
@@ -163,6 +181,9 @@ remains, stop and diagnose it before claiming completion.
 ## Safety boundaries
 
 - Never edit source exports.
+- Never import a row whose platform playback field is `0`.
+- Never import an explicit non-video type such as “图文”.
+- Never coerce a missing or invalid playback value to `0`; stop and report it.
 - Never replace an entire platform array with only the new file's rows; merge it.
 - Never use title alone as a cross-platform overwrite key.
 - Never invent an existing `vid_*` ID. It must exist in `videos.json`.
