@@ -548,7 +548,7 @@ export function Analytics() {
             }}
           >
             {importing ? '导入中…' : '一键导入'}
-          </button>>
+          </button>
           {/* 抖音导入 */}
           {platform === 'douyin' && (
             <>
