@@ -1,0 +1,39 @@
+{
+  "skill_name": "platform-video-data-import",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "把抖音、小红书、视频号这三份最新导出导入 ContentFlow。三个平台标题不完全一样，请结合视频库和逐字稿判断同一条内容；已有数据覆盖，没有的新增。先预览再写入。",
+      "expected_output": "Creates and validates an auditable plan, semantically links title variants, performs stable-key upserts with backup and atomic writes, and verifies a second run creates nothing.",
+      "files": [],
+      "expectations": [
+        "The workflow separates AI semantic decisions from deterministic parsing and writes.",
+        "The workflow dry-runs, backs up target files, and rejects stale hashes or unresolved review items.",
+        "Existing raw IDs and createdAt values are preserved while exported metrics are overwritten.",
+        "A second run reports zero new raw records and zero new videos."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "我又导出了一个视频号动态数据 CSV。上次关联后 videoId 已经变成 vid_xxx 了，这次要覆盖播放量，但不能丢掉视频号原生作品 ID，也不要重复建视频。",
+      "expected_output": "Migrates legacy overloaded videoId safely, preserves platformVideoId, updates the same raw record, and keeps its internal video association.",
+      "files": [],
+      "expectations": [
+        "Legacy vid_* values are treated as internal IDs and non-vid_* values as native platform IDs.",
+        "The resulting record has separate platformVideoId and videoId fields.",
+        "The record is updated rather than duplicated."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "这两条平台标题都像系统里的 Claude Code 新手教程，候选很接近。你直接挑一个导进去就行。",
+      "expected_output": "Refuses to guess when evidence is ambiguous and requests a focused review choice before apply.",
+      "files": [],
+      "expectations": [
+        "Ambiguous matches remain review items instead of being forced into match or create.",
+        "Apply is blocked until the review item is resolved.",
+        "The user sees source title, top candidates, dates, and concise ambiguity evidence."
+      ]
+    }
+  ]
+}
