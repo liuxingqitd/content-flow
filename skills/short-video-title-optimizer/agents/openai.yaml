@@ -1,0 +1,4 @@
+interface:
+  display_name: "短视频标题优化器"
+  short_description: "基于标题与逐字稿，评估爆款潜力并给出可信改写方案"
+  default_prompt: "Use $short-video-title-optimizer to assess this title against the transcript and provide evidence-based revisions."

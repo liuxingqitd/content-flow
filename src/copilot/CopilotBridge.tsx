@@ -36,6 +36,7 @@ export function CopilotBridge() {
         { title: '总结当前稿件', message: '请读取并总结当前稿件，列出核心观点和结构。' },
         { title: '搜索相似稿件', message: '请搜索 Vault 中与当前稿件主题相似的历史逐字稿。' },
         { title: '优化开头', message: '请读取当前稿件，分析开头并给出三个优化方案。' },
+        { title: '优化标题', message: '请读取当前稿件，判断现有标题是否有爆款潜力，说明依据并给出2到3个不超过20字符的修改版本。' },
       ]
     }
     return [
