@@ -12,7 +12,12 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
-import { getCommercialSettlementSummary } from './commercialUtils'
+import {
+  getCommercialDealType,
+  getCommercialSettlementSummary,
+  getCommercialTotalAmount,
+  getUnderwaterPaymentMethod,
+} from './commercialUtils'
 import { PlatformIcon } from '@/components/PlatformIcon'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
@@ -25,6 +30,9 @@ const TABLE_COLUMNS = [
   { key: 'cover', width: 70 },
   { key: 'title', width: 220 },
   { key: 'tags', width: 112 },
+  { key: 'commercialType', width: 96 },
+  { key: 'paymentMethod', width: 104 },
+  { key: 'commercialTotal', width: 104 },
   { key: 'settlement', width: 96 },
   { key: 'diagnosis', width: 96 },
   { key: 'cost', width: 92 },
@@ -42,6 +50,7 @@ export function Videos() {
   const videos = useAppStore(s => s.data?.videos ?? [])
   const tags = useAppStore(s => s.data?.tags ?? [])
   const hidePromotionCost = useAppStore(s => s.data?.settings.hidePromotionCost ?? false)
+  const hideCommercialAmount = useAppStore(s => s.data?.settings.hideCommercialAmount ?? false)
   const addVideo = useAppStore(s => s.addVideo)
 
   const displayVideos = useMemo(() => videos.filter(v => v.status === 'published' || v.status === 'archived'), [videos])
@@ -250,7 +259,7 @@ export function Videos() {
             <thead>
               <tr>
                 <th style={{ width: 74, padding: '9px 8px 9px 16px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1 }} />
-                {['标题', '标签', '结算状态', '平台诊断', ...(hidePromotionCost ? [] : ['投放金额']), '已发布', '已违规'].map(h => (
+                {['标题', '标签', '商单类型', '付款方式', '总金额', '结算状态', '平台诊断', ...(hidePromotionCost ? [] : ['投放金额']), '已发布', '已违规'].map(h => (
                   <th key={h} style={{
                     textAlign: 'left', padding: '9px 16px', fontSize: 11, fontWeight: 600,
                     color: 'var(--text-tertiary)', letterSpacing: '0.04em',
@@ -308,6 +317,26 @@ export function Videos() {
                           <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>+{videoTags.length - 2}</span>
                         )}
                       </div>
+                    </td>
+                    <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                      {video.isCommercial
+                        ? getCommercialDealType(video) === 'platform' ? '平台商单' : '水下商单'
+                        : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                    </td>
+                    <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                      {video.isCommercial
+                        ? getCommercialDealType(video) === 'platform'
+                          ? '平台结算'
+                          : getUnderwaterPaymentMethod(video) === 'corporate_payment' ? '对公付款' : '个人转账'
+                        : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                    </td>
+                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                      {video.isCommercial && hideCommercialAmount
+                        ? <span style={{ color: 'var(--text-tertiary)' }}>已隐藏</span>
+                        : (() => {
+                            const total = getCommercialTotalAmount(video)
+                            return total === undefined ? <span style={{ color: 'var(--text-tertiary)' }}>—</span> : `¥${total.toLocaleString()}`
+                          })()}
                     </td>
                     <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       {video.isCommercial && (() => {

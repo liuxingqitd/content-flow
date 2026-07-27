@@ -56,6 +56,12 @@ export function getCommercialAmountEntries(video: Video): CommercialAmountEntry[
   return [{ amount, settlementStatus: video.commercialSettlementStatus ?? 'unsettled' }]
 }
 
+export function getCommercialTotalAmount(video: Video): number | undefined {
+  const entries = getCommercialAmountEntries(video)
+  if (entries.length === 0) return undefined
+  return entries.reduce((total, entry) => total + entry.amount, 0)
+}
+
 export function getCommercialSettlementSummary(video: Video): CommercialSettlementStatus | 'partial' | undefined {
   const entries = getCommercialAmountEntries(video)
   if (entries.length === 0) return video.isCommercial ? 'unsettled' : undefined

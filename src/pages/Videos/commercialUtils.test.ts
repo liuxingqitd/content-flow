@@ -4,6 +4,7 @@ import {
   getCommercialAmountEntries,
   getCommercialDealType,
   getCommercialSettlementSummary,
+  getCommercialTotalAmount,
   getPlatformCommercialSettlements,
   getPublishedCommercialPlatforms,
   getUnderwaterPaymentMethod,
@@ -48,6 +49,7 @@ describe('commercial utils', () => {
       { amount: 1000, settlementStatus: 'settled' },
       { amount: 2000, settlementStatus: 'unsettled' },
     ])
+    expect(getCommercialTotalAmount(video)).toBe(3000)
     expect(getCommercialSettlementSummary(video)).toBe('partial')
   })
 
@@ -61,6 +63,7 @@ describe('commercial utils', () => {
     })
 
     expect(getCommercialAmountEntries(video)).toEqual([{ amount: 3600, settlementStatus: 'settled' }])
+    expect(getCommercialTotalAmount(video)).toBe(3600)
     expect(getUnderwaterPaymentMethod(video)).toBe('corporate_payment')
     expect(getCommercialSettlementSummary(video)).toBe('settled')
   })
@@ -95,6 +98,7 @@ describe('commercial utils', () => {
     })
 
     expect(getCommercialAmountEntries(video)).toEqual([])
+    expect(getCommercialTotalAmount(video)).toBeUndefined()
     expect(getCommercialSettlementSummary(video)).toBe('unsettled')
   })
 })
