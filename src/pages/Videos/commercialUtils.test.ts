@@ -5,6 +5,7 @@ import {
   getCommercialDealType,
   getCommercialSettlementSummary,
   getPlatformCommercialSettlements,
+  getPublishedCommercialPlatforms,
   getUnderwaterPaymentMethod,
 } from './commercialUtils'
 
@@ -21,6 +22,17 @@ const baseVideo = (overrides: Partial<Video> = {}): Video => ({
 })
 
 describe('commercial utils', () => {
+  it('only exposes platforms where the video has been published', () => {
+    const video = baseVideo({
+      platforms: [
+        { platform: 'shipinhao', status: 'published' },
+        { platform: 'douyin', status: 'violated' },
+      ],
+    })
+
+    expect(getPublishedCommercialPlatforms(video)).toEqual(['douyin', 'shipinhao'])
+  })
+
   it('keeps platform amounts and statuses independent', () => {
     const video = baseVideo({
       isCommercial: true,

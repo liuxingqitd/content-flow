@@ -6,10 +6,16 @@ import type {
   UnderwaterPaymentMethod,
   Video,
 } from '@/types'
+import { ALL_PLATFORMS } from '@/types'
 
 export interface CommercialAmountEntry {
   amount: number
   settlementStatus: CommercialSettlementStatus
+}
+
+export function getPublishedCommercialPlatforms(video: Video): Platform[] {
+  const publishedPlatforms = new Set(video.platforms.map(entry => entry.platform))
+  return ALL_PLATFORMS.filter(platform => publishedPlatforms.has(platform))
 }
 
 export function getCommercialDealType(video: Video): CommercialDealType {

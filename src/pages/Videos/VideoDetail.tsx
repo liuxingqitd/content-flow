@@ -19,7 +19,12 @@ import {
 import { formatDate, formatDateTime, formatFullDateTime, fromDateTimeLocalValue, fromNow, toDateTimeLocalValue } from '@/utils/date'
 import { calcEngagement, formatNumber } from '@/utils/format'
 import { getVideoDetailCreatedAt } from './videoDetailUtils'
-import { getCommercialDealType, getPlatformCommercialSettlements, getUnderwaterPaymentMethod } from './commercialUtils'
+import {
+  getCommercialDealType,
+  getPlatformCommercialSettlements,
+  getPublishedCommercialPlatforms,
+  getUnderwaterPaymentMethod,
+} from './commercialUtils'
 
 export function VideoDetail() {
   const { id } = useParams<{ id: string }>()
@@ -426,7 +431,7 @@ export function VideoDetail() {
                   {getCommercialDealType(video) === 'platform' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>款项均结算给对应平台；金额、周期和状态按平台独立记录。</p>
-                      {ALL_PLATFORMS.map(platform => {
+                      {getPublishedCommercialPlatforms(video).map(platform => {
                         const settlement = getPlatformCommercialSettlements(video).find(entry => entry.platform === platform)
                         return (
                           <div key={platform} style={{ padding: 10, border: '1px solid var(--border-subtle)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
