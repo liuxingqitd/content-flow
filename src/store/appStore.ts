@@ -48,6 +48,7 @@ interface AppState {
   // Platform entries
   setPlatformEntry: (videoId: string, platform: Platform, entry: Omit<PlatformPublish, 'platform'> | null) => void
   updatePlatformPublishedAt: (videoId: string, platform: Platform, publishedAt: string) => void
+  updatePlatformDiagnosis: (videoId: string, platform: Platform, diagnosis: string) => void
   addPromotionRecord: (videoId: string, platform: Platform, amount: number, spentAt: string) => void
   updatePromotionRecord: (videoId: string, recordId: string, platform: Platform, amount: number, spentAt: string) => void
   deletePromotionRecord: (videoId: string, recordId: string) => void
@@ -638,6 +639,20 @@ export const useAppStore = create<AppState>()(
         const entry = video.platforms.find(p => p.platform === platform)
         if (!entry || (entry.status ?? 'published') !== 'published') return
         entry.publishedAt = publishedAt
+        video.updatedAt = now()
+      })
+      scheduleSave(get)
+    },
+
+    updatePlatformDiagnosis: (videoId, platform, diagnosis) => {
+      set(s => {
+        if (!s.data) return
+        const video = s.data.videos.find(v => v.id === videoId)
+        const entry = video?.platforms.find(p => p.platform === platform)
+        if (!video || !entry) return
+        const nextDiagnosis = diagnosis.trim()
+        if (nextDiagnosis) entry.diagnosis = nextDiagnosis
+        else delete entry.diagnosis
         video.updatedAt = now()
       })
       scheduleSave(get)

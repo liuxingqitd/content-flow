@@ -10,7 +10,7 @@ import { PlatformIcon } from '@/components/PlatformIcon'
 import { Modal } from '@/components/ui/Modal'
 import { Input, Textarea } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import type { Platform, DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord } from '@/types'
+import type { CommercialPaymentRecipient, CommercialSettlementStatus, Platform, DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord } from '@/types'
 import {
   ALL_PLATFORMS, PLATFORM_LABELS,
   PLATFORM_STATUS_LABELS, PLATFORM_STATUS_COLORS,
@@ -36,6 +36,7 @@ export function VideoDetail() {
   const deleteMetric = useAppStore(s => s.deleteMetric)
   const setPlatformEntry = useAppStore(s => s.setPlatformEntry)
   const updatePlatformPublishedAt = useAppStore(s => s.updatePlatformPublishedAt)
+  const updatePlatformDiagnosis = useAppStore(s => s.updatePlatformDiagnosis)
   const addPromotionRecord = useAppStore(s => s.addPromotionRecord)
   const updatePromotionRecord = useAppStore(s => s.updatePromotionRecord)
   const deletePromotionRecord = useAppStore(s => s.deletePromotionRecord)
@@ -161,6 +162,7 @@ export function VideoDetail() {
   }
 
   const [commercialAmountDraft, setCommercialAmountDraft] = useState<string | undefined>(undefined)
+  const [platformDiagnosisDrafts, setPlatformDiagnosisDrafts] = useState<Partial<Record<Platform, string>>>({})
   const [promotionModal, setPromotionModal] = useState(false)
   const [promotionEditingId, setPromotionEditingId] = useState<string | null>(null)
   const [promotionForm, setPromotionForm] = useState({
@@ -335,8 +337,17 @@ export function VideoDetail() {
                 <button
                   onClick={() => {
                     updateVideo(video.id, video.isCommercial
-                      ? { isCommercial: false, commercialAmount: undefined }
-                      : { isCommercial: true })
+                      ? {
+                          isCommercial: false,
+                          commercialAmount: undefined,
+                          commercialSettlementStatus: undefined,
+                          commercialPaymentRecipient: undefined,
+                        }
+                      : {
+                          isCommercial: true,
+                          commercialSettlementStatus: 'unsettled',
+                          commercialPaymentRecipient: 'individual',
+                        })
                     setCommercialAmountDraft(undefined)
                   }}
                   style={{
@@ -351,22 +362,45 @@ export function VideoDetail() {
                 </button>
               </div>
               {video.isCommercial && (
-                hideCommercialAmount ? (
-                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 12 }}>商单金额已在隐私设置中隐藏</p>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, maxWidth: 220 }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>¥</span>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="1"
-                      placeholder="商单金额"
-                      value={commercialAmountDraft ?? (video.commercialAmount != null ? String(video.commercialAmount) : '')}
-                      onChange={e => setCommercialAmountDraft(e.target.value)}
-                      onBlur={handleCommercialAmountBlur}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+                  {hideCommercialAmount ? (
+                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>商单金额已在隐私设置中隐藏</p>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 220 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>¥</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="商单金额"
+                        value={commercialAmountDraft ?? (video.commercialAmount != null ? String(video.commercialAmount) : '')}
+                        onChange={e => setCommercialAmountDraft(e.target.value)}
+                        onBlur={handleCommercialAmountBlur}
+                      />
+                    </div>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <Select
+                      label="结算状态"
+                      options={[
+                        { value: 'unsettled', label: '未结算' },
+                        { value: 'settled', label: '已结算' },
+                      ]}
+                      value={video.commercialSettlementStatus ?? 'unsettled'}
+                      onChange={e => updateVideo(video.id, { commercialSettlementStatus: e.target.value as CommercialSettlementStatus })}
+                    />
+                    <Select
+                      label="付款给"
+                      options={[
+                        { value: 'individual', label: '个人' },
+                        { value: 'company', label: '公司' },
+                        { value: 'platform', label: '平台' },
+                      ]}
+                      value={video.commercialPaymentRecipient ?? 'individual'}
+                      onChange={e => updateVideo(video.id, { commercialPaymentRecipient: e.target.value as CommercialPaymentRecipient })}
                     />
                   </div>
-                )
+                </div>
               )}
             </div>
 
@@ -514,6 +548,7 @@ export function VideoDetail() {
                               onClick={() => setPlatformEntry(video.id, platform, {
                                 status: 'published',
                                 publishedAt: new Date().toISOString(),
+                                diagnosis: pub?.diagnosis,
                               })}
                             />
                           )}
@@ -561,6 +596,29 @@ export function VideoDetail() {
                         <p style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4, lineHeight: 1.5 }}>
                           {pub.violation.reason}
                         </p>
+                      )}
+                      {pub && (
+                        <div style={{ marginTop: 10 }}>
+                          <Textarea
+                            label="平台诊断信息"
+                            rows={7}
+                            maxLength={2000}
+                            placeholder="填写平台发布后给出的视频诊断信息，通常为 500–1000 字"
+                            value={platformDiagnosisDrafts[platform] ?? pub.diagnosis ?? ''}
+                            onChange={e => setPlatformDiagnosisDrafts(drafts => ({ ...drafts, [platform]: e.target.value }))}
+                            onBlur={e => {
+                              updatePlatformDiagnosis(video.id, platform, e.target.value)
+                              setPlatformDiagnosisDrafts(drafts => {
+                                const next = { ...drafts }
+                                delete next[platform]
+                                return next
+                              })
+                            }}
+                          />
+                          <p style={{ marginTop: 4, textAlign: 'right', fontSize: 11, color: 'var(--text-tertiary)' }}>
+                            {(platformDiagnosisDrafts[platform] ?? pub.diagnosis ?? '').length}/2000 字 · 建议 500–1000 字
+                          </p>
+                        </div>
                       )}
                     </div>
                   )
@@ -805,6 +863,7 @@ export function VideoDetail() {
                 setPlatformEntry(video.id, violationModal, {
                   status: 'violated',
                   publishedAt: existing?.publishedAt,
+                  diagnosis: existing?.diagnosis,
                   violation: {
                     reason: violationReason,
                     reportedAt: new Date().toISOString(),

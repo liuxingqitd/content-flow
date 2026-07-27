@@ -13,6 +13,10 @@ export type TopicStatus = 'inspiration' | 'adopted' | 'in_progress' | 'done'
 
 export type PlatformPublishStatus = 'published' | 'violated'
 
+export type CommercialSettlementStatus = 'unsettled' | 'settled'
+
+export type CommercialPaymentRecipient = 'individual' | 'company' | 'platform'
+
 export interface ViolationInfo {
   reason: string
   reportedAt: string
@@ -46,6 +50,7 @@ export interface PlatformPublish {
   url?: string
   platformVideoId?: string
   violation?: ViolationInfo
+  diagnosis?: string
 }
 
 export type ShootingFormat =
@@ -87,6 +92,8 @@ export interface Video {
   shootingFormats?: ShootingFormat[]
   isCommercial?: boolean
   commercialAmount?: number
+  commercialSettlementStatus?: CommercialSettlementStatus
+  commercialPaymentRecipient?: CommercialPaymentRecipient
   scriptId?: string
   topicId?: string
   statusHistory: StatusHistoryEntry[]
