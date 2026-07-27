@@ -10,6 +10,7 @@ import {
 import { PageContainer } from '@/components/layout/PageContainer'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { PlatformIcon } from '@/components/PlatformIcon'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
@@ -45,6 +46,7 @@ export function Videos() {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<VideoStatus | 'all'>('all')
   const [filterPlatform, setFilterPlatform] = useState<PlatformFilter | null>(null)
+  const [filterTagId, setFilterTagId] = useState('all')
   const [newModal, setNewModal] = useState(false)
   const [newForm, setNewForm] = useState({ title: '', description: '' })
   const tableScrollRef = useRef<HTMLDivElement>(null)
@@ -70,8 +72,11 @@ export function Videos() {
       const q = search.toLowerCase()
       list = list.filter(v => v.title.toLowerCase().includes(q))
     }
+    if (filterTagId !== 'all') {
+      list = list.filter(v => v.tagIds.includes(filterTagId))
+    }
     return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  }, [displayVideos, filterStatus, filterPlatform, search])
+  }, [displayVideos, filterStatus, filterPlatform, filterTagId, search])
 
   const updateVirtualWindow = useCallback(() => {
     const node = tableScrollRef.current
@@ -153,6 +158,21 @@ export function Videos() {
         <div style={{ width: 248, maxWidth: '100%' }}>
           <Input placeholder="搜索视频…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+        {tags.length > 0 && (
+          <Select
+            aria-label="按标签筛选"
+            value={filterTagId}
+            onChange={e => setFilterTagId(e.target.value)}
+            options={[
+              { value: 'all', label: '全部标签' },
+              ...tags.map(tag => ({
+                value: tag.id,
+                label: `${tag.name} (${displayVideos.filter(video => video.tagIds.includes(tag.id)).length})`,
+              })),
+            ]}
+            style={{ minWidth: 148, maxWidth: 220 }}
+          />
+        )}
         <div style={{ width: 1, height: 24, background: 'var(--border-subtle)', flexShrink: 0 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', flex: 1 }}>
           <FilterChip
@@ -187,8 +207,8 @@ export function Videos() {
       {/* Table */}
       {filtered.length === 0 ? (
         <EmptyState
-          title="暂无已发布的视频"
-          description="看板中的视频发布后将显示在这里"
+          title={displayVideos.length === 0 ? '暂无已发布的视频' : '没有符合筛选条件的视频'}
+          description={displayVideos.length === 0 ? '看板中的视频发布后将显示在这里' : '请尝试更换标签、状态或搜索关键词'}
           action={<Button variant="primary" size="sm" onClick={() => setNewModal(true)}>新建视频</Button>}
         />
       ) : (
