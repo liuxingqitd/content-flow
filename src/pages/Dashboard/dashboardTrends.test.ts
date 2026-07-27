@@ -140,4 +140,19 @@ describe('buildMonthlyCommercialTrend', () => {
 
     expect(result[0]).toMatchObject({ settledAmount: 0, unsettledAmount: 0 })
   })
+
+  it('sums each platform deal independently by its settlement status', () => {
+    const result = buildMonthlyCommercialTrend([
+      video('platform-deal', ['2026-01-15T09:00:00'], {
+        isCommercial: true,
+        commercialDealType: 'platform',
+        platformCommercialSettlements: [
+          { platform: 'douyin', amount: 1800, settlementCycle: '发布后30天', settlementStatus: 'settled' },
+          { platform: 'xiaohongshu', amount: 2200, settlementCycle: '次月15日', settlementStatus: 'unsettled' },
+        ],
+      }),
+    ], new Date(2026, 0, 31), 1)
+
+    expect(result[0]).toMatchObject({ settledAmount: 1800, unsettledAmount: 2200 })
+  })
 })

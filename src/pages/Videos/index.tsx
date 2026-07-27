@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
+import { getCommercialSettlementSummary } from './commercialUtils'
 import { PlatformIcon } from '@/components/PlatformIcon'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
@@ -288,11 +289,14 @@ export function Videos() {
                       </div>
                     </td>
                     <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                      {video.isCommercial && (
-                        <Badge color={video.commercialSettlementStatus === 'settled' ? 'var(--success)' : 'var(--warning)'}>
-                          {video.commercialSettlementStatus === 'settled' ? '已结算' : '未结算'}
-                        </Badge>
-                      )}
+                      {video.isCommercial && (() => {
+                        const summary = getCommercialSettlementSummary(video)
+                        return (
+                          <Badge color={summary === 'settled' ? 'var(--success)' : 'var(--warning)'}>
+                            {summary === 'settled' ? '已结算' : summary === 'partial' ? '部分结算' : '未结算'}
+                          </Badge>
+                        )
+                      })()}
                     </td>
                     <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       <PlatformDiagnosisIcons platforms={video.platforms} />

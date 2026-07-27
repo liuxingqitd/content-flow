@@ -10,7 +10,7 @@ import { PlatformIcon } from '@/components/PlatformIcon'
 import { Modal } from '@/components/ui/Modal'
 import { Input, Textarea } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import type { CommercialPaymentRecipient, CommercialSettlementStatus, Platform, DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord } from '@/types'
+import type { CommercialDealType, CommercialSettlementStatus, Platform, PlatformCommercialSettlement, UnderwaterPaymentMethod, DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord } from '@/types'
 import {
   ALL_PLATFORMS, PLATFORM_LABELS,
   PLATFORM_STATUS_LABELS, PLATFORM_STATUS_COLORS,
@@ -19,6 +19,7 @@ import {
 import { formatDate, formatDateTime, formatFullDateTime, fromDateTimeLocalValue, fromNow, toDateTimeLocalValue } from '@/utils/date'
 import { calcEngagement, formatNumber } from '@/utils/format'
 import { getVideoDetailCreatedAt } from './videoDetailUtils'
+import { getCommercialDealType, getPlatformCommercialSettlements, getUnderwaterPaymentMethod } from './commercialUtils'
 
 export function VideoDetail() {
   const { id } = useParams<{ id: string }>()
@@ -213,6 +214,26 @@ export function VideoDetail() {
     setCommercialAmountDraft(undefined)
   }
 
+  const updatePlatformCommercialSettlement = (
+    platform: Platform,
+    patch: Partial<Omit<PlatformCommercialSettlement, 'platform'>>,
+  ) => {
+    const settlements = getPlatformCommercialSettlements(video)
+    const current = settlements.find(entry => entry.platform === platform)
+    const next: PlatformCommercialSettlement = {
+      platform,
+      settlementStatus: current?.settlementStatus ?? 'unsettled',
+      ...current,
+      ...patch,
+    }
+    updateVideo(video.id, {
+      platformCommercialSettlements: [
+        ...settlements.filter(entry => entry.platform !== platform),
+        next,
+      ],
+    })
+  }
+
   const openNewPromotion = () => {
     const firstPublishedPlatform = video.platforms.find(platform => platform.status === 'published')?.platform
     setPromotionEditingId(null)
@@ -339,14 +360,17 @@ export function VideoDetail() {
                     updateVideo(video.id, video.isCommercial
                       ? {
                           isCommercial: false,
+                          commercialDealType: undefined,
+                          platformCommercialSettlements: undefined,
+                          underwaterPaymentMethod: undefined,
                           commercialAmount: undefined,
                           commercialSettlementStatus: undefined,
                           commercialPaymentRecipient: undefined,
                         }
                       : {
                           isCommercial: true,
-                          commercialSettlementStatus: 'unsettled',
-                          commercialPaymentRecipient: 'individual',
+                          commercialDealType: 'platform',
+                          platformCommercialSettlements: [],
                         })
                     setCommercialAmountDraft(undefined)
                   }}
@@ -363,43 +387,112 @@ export function VideoDetail() {
               </div>
               {video.isCommercial && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
-                  {hideCommercialAmount ? (
-                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>商单金额已在隐私设置中隐藏</p>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 220 }}>
-                      <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>¥</span>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="1"
-                        placeholder="商单金额"
-                        value={commercialAmountDraft ?? (video.commercialAmount != null ? String(video.commercialAmount) : '')}
-                        onChange={e => setCommercialAmountDraft(e.target.value)}
-                        onBlur={handleCommercialAmountBlur}
-                      />
+                  <Select
+                    label="商单类型"
+                    options={[
+                      { value: 'platform', label: '平台商单' },
+                      { value: 'underwater', label: '水下商单' },
+                    ]}
+                    value={getCommercialDealType(video)}
+                    onChange={e => {
+                      const commercialDealType = e.target.value as CommercialDealType
+                      updateVideo(video.id, {
+                        commercialDealType,
+                        ...(commercialDealType === 'underwater' && !video.underwaterPaymentMethod
+                          ? { underwaterPaymentMethod: getUnderwaterPaymentMethod(video) }
+                          : {}),
+                      })
+                      setCommercialAmountDraft(undefined)
+                    }}
+                  />
+
+                  {getCommercialDealType(video) === 'platform' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>款项均结算给对应平台；金额、周期和状态按平台独立记录。</p>
+                      {ALL_PLATFORMS.map(platform => {
+                        const settlement = getPlatformCommercialSettlements(video).find(entry => entry.platform === platform)
+                        return (
+                          <div key={platform} style={{ padding: 10, border: '1px solid var(--border-subtle)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                              <PlatformIcon platform={platform} size={14} />
+                              {PLATFORM_LABELS[platform]}
+                              <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 400, color: 'var(--text-tertiary)' }}>结算给平台</span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                              {hideCommercialAmount ? (
+                                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', alignSelf: 'end', paddingBottom: 8 }}>金额已隐藏</div>
+                              ) : (
+                                <Input
+                                  label="金额（元）"
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  placeholder="未设置"
+                                  value={settlement?.amount ?? ''}
+                                  onChange={e => {
+                                    const amount = Number(e.target.value)
+                                    updatePlatformCommercialSettlement(platform, { amount: e.target.value && Number.isFinite(amount) && amount > 0 ? amount : undefined })
+                                  }}
+                                />
+                              )}
+                              <Input
+                                label="结算周期"
+                                placeholder="如：发布后30天"
+                                value={settlement?.settlementCycle ?? ''}
+                                onChange={e => updatePlatformCommercialSettlement(platform, { settlementCycle: e.target.value || undefined })}
+                              />
+                            </div>
+                            <Select
+                              label="结算状态"
+                              options={[
+                                { value: 'unsettled', label: '未结算' },
+                                { value: 'settled', label: '已结算' },
+                              ]}
+                              value={settlement?.settlementStatus ?? 'unsettled'}
+                              onChange={e => updatePlatformCommercialSettlement(platform, { settlementStatus: e.target.value as CommercialSettlementStatus })}
+                            />
+                          </div>
+                        )
+                      })}
                     </div>
+                  ) : (
+                    <>
+                      {hideCommercialAmount ? (
+                        <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>商单金额已在隐私设置中隐藏</p>
+                      ) : (
+                        <Input
+                          label="一口价（元）"
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="商单金额"
+                          value={commercialAmountDraft ?? (video.commercialAmount != null ? String(video.commercialAmount) : '')}
+                          onChange={e => setCommercialAmountDraft(e.target.value)}
+                          onBlur={handleCommercialAmountBlur}
+                        />
+                      )}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <Select
+                          label="结算状态"
+                          options={[
+                            { value: 'unsettled', label: '未结算' },
+                            { value: 'settled', label: '已结算' },
+                          ]}
+                          value={video.commercialSettlementStatus ?? 'unsettled'}
+                          onChange={e => updateVideo(video.id, { commercialSettlementStatus: e.target.value as CommercialSettlementStatus })}
+                        />
+                        <Select
+                          label="付款方式"
+                          options={[
+                            { value: 'personal_transfer', label: '个人转账' },
+                            { value: 'corporate_payment', label: '对公付款' },
+                          ]}
+                          value={getUnderwaterPaymentMethod(video)}
+                          onChange={e => updateVideo(video.id, { underwaterPaymentMethod: e.target.value as UnderwaterPaymentMethod })}
+                        />
+                      </div>
+                    </>
                   )}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <Select
-                      label="结算状态"
-                      options={[
-                        { value: 'unsettled', label: '未结算' },
-                        { value: 'settled', label: '已结算' },
-                      ]}
-                      value={video.commercialSettlementStatus ?? 'unsettled'}
-                      onChange={e => updateVideo(video.id, { commercialSettlementStatus: e.target.value as CommercialSettlementStatus })}
-                    />
-                    <Select
-                      label="付款给"
-                      options={[
-                        { value: 'individual', label: '个人' },
-                        { value: 'company', label: '公司' },
-                        { value: 'platform', label: '平台' },
-                      ]}
-                      value={video.commercialPaymentRecipient ?? 'individual'}
-                      onChange={e => updateVideo(video.id, { commercialPaymentRecipient: e.target.value as CommercialPaymentRecipient })}
-                    />
-                  </div>
                 </div>
               )}
             </div>

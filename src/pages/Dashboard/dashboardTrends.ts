@@ -1,4 +1,5 @@
 import type { Video } from '@/types'
+import { getCommercialAmountEntries } from '@/pages/Videos/commercialUtils'
 
 export type PublishTrendGranularity = 'week' | 'month'
 
@@ -147,8 +148,8 @@ export function buildMonthlyCommercialTrend(
   const amounts = new Map(points.map(point => [point.key, point]))
 
   videos.forEach(video => {
-    const amount = video.isCommercial ? video.commercialAmount : undefined
-    if (amount === undefined || !Number.isFinite(amount) || amount <= 0) return
+    const entries = getCommercialAmountEntries(video)
+    if (entries.length === 0) return
 
     const date = getFirstPublishedAt(video) ?? parseValidDate(video.createdAt)
     if (!date || date.getTime() > referenceDate.getTime()) return
@@ -156,11 +157,10 @@ export function buildMonthlyCommercialTrend(
     const point = amounts.get(localMonthKey(date))
     if (!point) return
 
-    if (video.commercialSettlementStatus === 'settled') {
-      point.settledAmount += amount
-    } else {
-      point.unsettledAmount += amount
-    }
+    entries.forEach(entry => {
+      if (entry.settlementStatus === 'settled') point.settledAmount += entry.amount
+      else point.unsettledAmount += entry.amount
+    })
   })
 
   return points

@@ -17,6 +17,17 @@ export type CommercialSettlementStatus = 'unsettled' | 'settled'
 
 export type CommercialPaymentRecipient = 'individual' | 'company' | 'platform'
 
+export type CommercialDealType = 'platform' | 'underwater'
+
+export type UnderwaterPaymentMethod = 'personal_transfer' | 'corporate_payment'
+
+export interface PlatformCommercialSettlement {
+  platform: Platform
+  amount?: number
+  settlementCycle?: string
+  settlementStatus: CommercialSettlementStatus
+}
+
 export interface ViolationInfo {
   reason: string
   reportedAt: string
@@ -91,6 +102,10 @@ export interface Video {
   tagIds: string[]
   shootingFormats?: ShootingFormat[]
   isCommercial?: boolean
+  commercialDealType?: CommercialDealType
+  platformCommercialSettlements?: PlatformCommercialSettlement[]
+  underwaterPaymentMethod?: UnderwaterPaymentMethod
+  /** Legacy commercial fields kept for backward-compatible reads. */
   commercialAmount?: number
   commercialSettlementStatus?: CommercialSettlementStatus
   commercialPaymentRecipient?: CommercialPaymentRecipient
