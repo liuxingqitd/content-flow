@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useLayoutEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAppStore } from '@/store/appStore'
 import { readCoverThumbnailImage } from '@/services/fileSystem'
 import {
@@ -19,8 +19,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Input'
 import type { Platform, PlatformPublish, PlatformPublishStatus, VideoStatus } from '@/types'
 import { VIDEO_STATUS_LABELS } from '@/types'
-
-type PlatformFilter = 'violated'
+import { readVideoListFilters, updateVideoListFilter, type VideoPlatformFilter } from './videoListFilters'
 
 const TABLE_COLUMNS = [
   { key: 'cover', width: 70 },
@@ -39,6 +38,7 @@ const VIRTUAL_OVERSCAN = 8
 
 export function Videos() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const videos = useAppStore(s => s.data?.videos ?? [])
   const tags = useAppStore(s => s.data?.tags ?? [])
   const hidePromotionCost = useAppStore(s => s.data?.settings.hidePromotionCost ?? false)
@@ -46,20 +46,27 @@ export function Videos() {
 
   const displayVideos = useMemo(() => videos.filter(v => v.status === 'published' || v.status === 'archived'), [videos])
 
-  const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState<VideoStatus | 'all'>('all')
-  const [filterPlatform, setFilterPlatform] = useState<PlatformFilter | null>(null)
-  const [filterTagId, setFilterTagId] = useState('all')
+  const { search, status: filterStatus, platform: filterPlatform, tagId: filterTagId, commercialOnly } = readVideoListFilters(searchParams)
   const [newModal, setNewModal] = useState(false)
   const [newForm, setNewForm] = useState({ title: '', description: '' })
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
   const [virtualWindow, setVirtualWindow] = useState({ start: 0, end: 40 })
 
-  const setVideoFilter = (s: VideoStatus | 'all') => { setFilterStatus(s); setFilterPlatform(null) }
-  const setPlatformFilter = (f: PlatformFilter) => {
-    setFilterPlatform(prev => prev === f ? null : f)
-    setFilterStatus('all')
+  const setFilterParam = (key: 'q' | 'status' | 'platform' | 'tag' | 'commercial', value?: string) => {
+    setSearchParams(current => updateVideoListFilter(current, key, value), { replace: true })
+  }
+  const setVideoFilter = (status: VideoStatus | 'all') => {
+    setSearchParams(current => {
+      const withoutPlatform = updateVideoListFilter(current, 'platform')
+      return updateVideoListFilter(withoutPlatform, 'status', status)
+    }, { replace: true })
+  }
+  const setPlatformFilter = (filter: VideoPlatformFilter) => {
+    setSearchParams(current => {
+      const withoutStatus = updateVideoListFilter(current, 'status')
+      return updateVideoListFilter(withoutStatus, 'platform', filterPlatform === filter ? undefined : filter)
+    }, { replace: true })
   }
 
   const violated = displayVideos.filter(v => v.platforms.some(p => (p.status ?? 'published') === 'violated'))
@@ -73,13 +80,17 @@ export function Videos() {
     }
     if (search.trim()) {
       const q = search.toLowerCase()
-      list = list.filter(v => v.title.toLowerCase().includes(q))
+      list = list.filter(v =>
+        v.title.toLowerCase().includes(q) || v.commercialBrandName?.toLowerCase().includes(q))
     }
     if (filterTagId !== 'all') {
       list = list.filter(v => v.tagIds.includes(filterTagId))
     }
+    if (commercialOnly) {
+      list = list.filter(v => v.isCommercial)
+    }
     return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  }, [displayVideos, filterStatus, filterPlatform, filterTagId, search])
+  }, [displayVideos, filterStatus, filterPlatform, filterTagId, commercialOnly, search])
 
   const updateVirtualWindow = useCallback(() => {
     const node = tableScrollRef.current
@@ -159,13 +170,13 @@ export function Videos() {
         background: 'var(--bg-surface)',
       }}>
         <div style={{ width: 248, maxWidth: '100%' }}>
-          <Input placeholder="搜索视频…" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="搜索视频或品牌方…" value={search} onChange={e => setFilterParam('q', e.target.value)} />
         </div>
         {tags.length > 0 && (
           <Select
             aria-label="按标签筛选"
             value={filterTagId}
-            onChange={e => setFilterTagId(e.target.value)}
+            onChange={e => setFilterParam('tag', e.target.value)}
             options={[
               { value: 'all', label: '全部标签' },
               ...tags.map(tag => ({
@@ -204,6 +215,13 @@ export function Videos() {
               activeBg="rgba(248,113,113,0.14)"
             />
           )}
+          <FilterChip
+            active={commercialOnly}
+            onClick={() => setFilterParam('commercial', commercialOnly ? undefined : '1')}
+            label={`商单 (${displayVideos.filter(video => video.isCommercial).length})`}
+            color="var(--accent)"
+            activeBg="var(--accent-alpha)"
+          />
         </div>
       </div>
 
@@ -271,6 +289,9 @@ export function Videos() {
                       <p style={{ fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>{video.title}</p>
                       {video.description && (
                         <p style={{ fontSize: 11, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{video.description}</p>
+                      )}
+                      {video.isCommercial && video.commercialBrandName && (
+                        <p style={{ fontSize: 10, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>品牌：{video.commercialBrandName}</p>
                       )}
                     </td>
                     <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>

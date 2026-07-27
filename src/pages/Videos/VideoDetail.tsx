@@ -54,6 +54,11 @@ export function VideoDetail() {
   const linkedShipinhao = useMemo(() => shipinhaoRecords.filter(r => r.videoId === id), [shipinhaoRecords, id])
   const linkedXiaohongshu = useMemo(() => xiaohongshuRecords.filter(r => r.videoId === id), [xiaohongshuRecords, id])
   const hasLinkedRecords = linkedDouyin.length > 0 || linkedShipinhao.length > 0 || linkedXiaohongshu.length > 0
+  const handleBack = () => {
+    const historyIndex = Number(window.history.state?.idx ?? 0)
+    if (historyIndex > 0) navigate(-1)
+    else navigate('/videos')
+  }
 
   const [coverPortraitUrl, setCoverPortraitUrl] = useState<string | null>(null)
   const [coverLandscapeUrl, setCoverLandscapeUrl] = useState<string | null>(null)
@@ -274,6 +279,7 @@ export function VideoDetail() {
       title={video.title}
       actions={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Button variant="ghost" size="sm" onClick={handleBack}>← 返回上一级</Button>
           <StatusBadge status={video.status} />
           <Button variant="danger" size="sm" onClick={() => setDeleteConfirm(true)}>删除</Button>
         </div>
@@ -360,6 +366,7 @@ export function VideoDetail() {
                     updateVideo(video.id, video.isCommercial
                       ? {
                           isCommercial: false,
+                          commercialBrandName: undefined,
                           commercialDealType: undefined,
                           platformCommercialSettlements: undefined,
                           underwaterPaymentMethod: undefined,
@@ -387,6 +394,16 @@ export function VideoDetail() {
               </div>
               {video.isCommercial && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+                  <Input
+                    label="品牌方名称"
+                    placeholder="例如：品牌或客户名称"
+                    value={video.commercialBrandName ?? ''}
+                    onChange={e => updateVideo(video.id, { commercialBrandName: e.target.value || undefined })}
+                    onBlur={e => {
+                      const commercialBrandName = e.target.value.trim()
+                      updateVideo(video.id, { commercialBrandName: commercialBrandName || undefined })
+                    }}
+                  />
                   <Select
                     label="商单类型"
                     options={[

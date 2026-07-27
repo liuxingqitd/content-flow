@@ -102,6 +102,7 @@ export interface Video {
   tagIds: string[]
   shootingFormats?: ShootingFormat[]
   isCommercial?: boolean
+  commercialBrandName?: string
   commercialDealType?: CommercialDealType
   platformCommercialSettlements?: PlatformCommercialSettlement[]
   underwaterPaymentMethod?: UnderwaterPaymentMethod
