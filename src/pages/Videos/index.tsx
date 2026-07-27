@@ -11,6 +11,7 @@ import { PageContainer } from '@/components/layout/PageContainer'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
+import { Badge } from '@/components/ui/Badge'
 import { PlatformIcon } from '@/components/PlatformIcon'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
@@ -24,6 +25,7 @@ const TABLE_COLUMNS = [
   { key: 'cover', width: 70 },
   { key: 'title', width: 220 },
   { key: 'tags', width: 112 },
+  { key: 'settlement', width: 96 },
   { key: 'diagnosis', width: 96 },
   { key: 'cost', width: 92 },
   { key: 'published', width: 108 },
@@ -229,7 +231,7 @@ export function Videos() {
             <thead>
               <tr>
                 <th style={{ width: 74, padding: '9px 8px 9px 16px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1 }} />
-                {['标题', '标签', '平台诊断', ...(hidePromotionCost ? [] : ['投放金额']), '已发布', '已违规'].map(h => (
+                {['标题', '标签', '结算状态', '平台诊断', ...(hidePromotionCost ? [] : ['投放金额']), '已发布', '已违规'].map(h => (
                   <th key={h} style={{
                     textAlign: 'left', padding: '9px 16px', fontSize: 11, fontWeight: 600,
                     color: 'var(--text-tertiary)', letterSpacing: '0.04em',
@@ -284,6 +286,13 @@ export function Videos() {
                           <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>+{videoTags.length - 2}</span>
                         )}
                       </div>
+                    </td>
+                    <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                      {video.isCommercial && (
+                        <Badge color={video.commercialSettlementStatus === 'settled' ? 'var(--success)' : 'var(--warning)'}>
+                          {video.commercialSettlementStatus === 'settled' ? '已结算' : '未结算'}
+                        </Badge>
+                      )}
                     </td>
                     <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       <PlatformDiagnosisIcons platforms={video.platforms} />
