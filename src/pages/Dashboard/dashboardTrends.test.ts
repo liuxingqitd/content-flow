@@ -90,6 +90,7 @@ describe('buildMonthlyCommercialTrend', () => {
       video('commercial', ['2026-01-31T09:00:00', '2026-02-02T09:00:00'], {
         isCommercial: true,
         commercialAmount: 5000,
+        commercialSettlementStatus: 'settled',
       }),
       video('another', ['2026-01-15T09:00:00'], {
         isCommercial: true,
@@ -100,9 +101,9 @@ describe('buildMonthlyCommercialTrend', () => {
       video('infinite', ['2026-01-10T09:00:00'], { isCommercial: true, commercialAmount: Infinity }),
     ], new Date(2026, 1, 10), 2)
 
-    expect(result.map(point => [point.key, point.amount])).toEqual([
-      ['2026-01', 6200],
-      ['2026-02', 0],
+    expect(result.map(point => [point.key, point.settledAmount, point.unsettledAmount])).toEqual([
+      ['2026-01', 5000, 1200],
+      ['2026-02', 0, 0],
     ])
   })
 
@@ -120,12 +121,12 @@ describe('buildMonthlyCommercialTrend', () => {
       }),
     ], new Date(2026, 1, 10), 2)
 
-    expect(result.map(point => point.amount)).toEqual([0, 3000])
+    expect(result.map(point => [point.settledAmount, point.unsettledAmount])).toEqual([[0, 0], [0, 3000]])
   })
 
   it('fills empty months and returns no buckets for a non-positive count', () => {
     const result = buildMonthlyCommercialTrend([], new Date(2026, 2, 10), 3)
-    expect(result.map(point => point.amount)).toEqual([0, 0, 0])
+    expect(result.map(point => [point.settledAmount, point.unsettledAmount])).toEqual([[0, 0], [0, 0], [0, 0]])
     expect(buildMonthlyCommercialTrend([], new Date(2026, 2, 10), -1)).toEqual([])
   })
 
@@ -137,6 +138,6 @@ describe('buildMonthlyCommercialTrend', () => {
       }),
     ], new Date(2026, 6, 22, 12), 1)
 
-    expect(result[0].amount).toBe(0)
+    expect(result[0]).toMatchObject({ settledAmount: 0, unsettledAmount: 0 })
   })
 })

@@ -15,7 +15,8 @@ export interface CommercialTrendPoint {
   label: string
   rangeStart: string
   rangeEnd: string
-  amount: number
+  settledAmount: number
+  unsettledAmount: number
 }
 
 const startOfLocalDay = (value: Date) =>
@@ -140,7 +141,8 @@ export function buildMonthlyCommercialTrend(
       label: point.label,
       rangeStart: point.rangeStart,
       rangeEnd: point.rangeEnd,
-      amount: 0,
+      settledAmount: 0,
+      unsettledAmount: 0,
     }))
   const amounts = new Map(points.map(point => [point.key, point]))
 
@@ -152,7 +154,13 @@ export function buildMonthlyCommercialTrend(
     if (!date || date.getTime() > referenceDate.getTime()) return
 
     const point = amounts.get(localMonthKey(date))
-    if (point) point.amount += amount
+    if (!point) return
+
+    if (video.commercialSettlementStatus === 'settled') {
+      point.settledAmount += amount
+    } else {
+      point.unsettledAmount += amount
+    }
   })
 
   return points

@@ -15,20 +15,18 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Input'
 import type { Platform, PlatformPublish, PlatformPublishStatus, VideoStatus } from '@/types'
-import { VIDEO_STATUS_LABELS, SHOOTING_FORMAT_LABELS } from '@/types'
+import { VIDEO_STATUS_LABELS } from '@/types'
 
 type PlatformFilter = 'violated'
-import { fromNow } from '@/utils/date'
 
 const TABLE_COLUMNS = [
   { key: 'cover', width: 70 },
   { key: 'title', width: 220 },
   { key: 'tags', width: 112 },
-  { key: 'shooting', width: 96 },
+  { key: 'diagnosis', width: 96 },
   { key: 'cost', width: 92 },
   { key: 'published', width: 108 },
   { key: 'violated', width: 94 },
-  { key: 'updated', width: 82 },
 ] as const
 
 const PLATFORM_DISPLAY_ORDER: Platform[] = ['shipinhao', 'xiaohongshu', 'douyin']
@@ -211,7 +209,7 @@ export function Videos() {
             <thead>
               <tr>
                 <th style={{ width: 74, padding: '9px 8px 9px 16px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1 }} />
-                {['标题', '标签', '拍摄形式', ...(hidePromotionCost ? [] : ['投放金额']), '已发布', '已违规', '更新'].map(h => (
+                {['标题', '标签', '平台诊断', ...(hidePromotionCost ? [] : ['投放金额']), '已发布', '已违规'].map(h => (
                   <th key={h} style={{
                     textAlign: 'left', padding: '9px 16px', fontSize: 11, fontWeight: 600,
                     color: 'var(--text-tertiary)', letterSpacing: '0.04em',
@@ -267,10 +265,8 @@ export function Videos() {
                         )}
                       </div>
                     </td>
-                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                      {video.shootingFormats && video.shootingFormats.length > 0
-                        ? video.shootingFormats.map(f => SHOOTING_FORMAT_LABELS[f] ?? f).join('、')
-                        : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                    <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                      <PlatformDiagnosisIcons platforms={video.platforms} />
                     </td>
                     {!hidePromotionCost && (
                     <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
@@ -285,9 +281,6 @@ export function Videos() {
                     </td>
                     <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       <PlatformStatusIcons platforms={video.platforms} status="violated" />
-                    </td>
-                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                      {fromNow(video.updatedAt)}
                     </td>
                   </tr>
                 )
@@ -335,6 +328,24 @@ function PlatformStatusIcons({ platforms, status }: { platforms: PlatformPublish
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       {orderedPlatforms.map(platform => (
+        <PlatformIcon key={platform} platform={platform} size={16} />
+      ))}
+    </div>
+  )
+}
+
+function PlatformDiagnosisIcons({ platforms }: { platforms: PlatformPublish[] }) {
+  const diagnosedPlatforms = PLATFORM_DISPLAY_ORDER.filter(platform =>
+    platforms.some(p => p.platform === platform && Boolean(p.diagnosis?.trim()))
+  )
+
+  if (diagnosedPlatforms.length === 0) {
+    return <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>—</span>
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      {diagnosedPlatforms.map(platform => (
         <PlatformIcon key={platform} platform={platform} size={16} />
       ))}
     </div>

@@ -74,10 +74,13 @@ export function Dashboard() {
   }, 0)
 
   const monthlyCommercialTrend = buildMonthlyCommercialTrend(videos, now)
-  const monthlyCommercialAmount = monthlyCommercialTrend[monthlyCommercialTrend.length - 1]?.amount ?? 0
+  const currentCommercialAmounts = monthlyCommercialTrend[monthlyCommercialTrend.length - 1]
+  const monthlySettledCommercialAmount = currentCommercialAmounts?.settledAmount ?? 0
+  const monthlyUnsettledCommercialAmount = currentCommercialAmounts?.unsettledAmount ?? 0
 
   const formattedMonthlyPromotionCost = currencyFormatter.format(monthlyPromotionCost)
-  const formattedMonthlyCommercialAmount = currencyFormatter.format(monthlyCommercialAmount)
+  const formattedMonthlySettledCommercialAmount = currencyFormatter.format(monthlySettledCommercialAmount)
+  const formattedMonthlyUnsettledCommercialAmount = currencyFormatter.format(monthlyUnsettledCommercialAmount)
 
   const pendingTopics = topics.filter(t => t.status === 'inspiration' || t.status === 'adopted')
 
@@ -153,7 +156,10 @@ export function Dashboard() {
             { label: '已发布', value: statusCounts.published, sub: '条视频', accent: true, path: '/videos' },
             { label: '本月新建', value: thisMonth.length, sub: '条视频', accent: false, path: '/kanban' },
             ...(hidePromotionCost ? [] : [{ label: '本月投放成本' as const, value: formattedMonthlyPromotionCost, sub: '平台投放', accent: false, path: '/videos' }]),
-            ...(hideCommercialAmount ? [] : [{ label: '本月商单金额' as const, value: formattedMonthlyCommercialAmount, sub: '合作收入', accent: false, path: '/videos' }]),
+            ...(hideCommercialAmount ? [] : [
+              { label: '本月已结算商单' as const, value: formattedMonthlySettledCommercialAmount, sub: '已结算收入', accent: false, path: '/videos' },
+              { label: '本月未结算商单' as const, value: formattedMonthlyUnsettledCommercialAmount, sub: '待结算收入', accent: false, path: '/videos' },
+            ]),
             { label: '待处理选题', value: pendingTopics.length, sub: '个想法', accent: false, path: '/topics' },
             { label: '逐字稿', value: scripts.length, sub: '篇稿件', accent: false, path: '/scripts' },
           ].map(stat => (
@@ -317,7 +323,7 @@ export function Dashboard() {
         {!hideCommercialAmount && (
           <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 16 }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>月度商单金额趋势</p>
-            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>最近 12 个月按视频首次发布时间归属的商单金额</p>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>最近 12 个月按视频首次发布时间归属，并按结算状态分别统计</p>
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={monthlyCommercialTrend} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
                 <defs>
@@ -338,9 +344,10 @@ export function Dashboard() {
                 <Tooltip
                   contentStyle={tooltipStyle}
                   labelFormatter={(_, payload) => payload[0]?.payload ? payload[0].payload.key : ''}
-                  formatter={(value: unknown) => [currencyFormatter.format(Number(value)), '商单金额']}
+                  formatter={(value: unknown, name: unknown) => [currencyFormatter.format(Number(value)), String(name)]}
                 />
-                <Area type="monotone" dataKey="amount" name="商单金额" stroke="var(--success)" strokeWidth={2} fill="url(#commercialTrendFill)" activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="settledAmount" name="已结算" stroke="var(--success)" strokeWidth={2} fill="url(#commercialTrendFill)" activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="unsettledAmount" name="未结算" stroke="var(--warning)" strokeWidth={2} fillOpacity={0} activeDot={{ r: 4 }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
