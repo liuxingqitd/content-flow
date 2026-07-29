@@ -24,21 +24,14 @@ import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Input'
 import type { Platform, PlatformPublish, PlatformPublishStatus, VideoStatus } from '@/types'
 import { VIDEO_STATUS_LABELS } from '@/types'
-import { readVideoListFilters, updateVideoListFilter, type VideoPlatformFilter } from './videoListFilters'
-
-const TABLE_COLUMNS = [
-  { key: 'cover', width: 70 },
-  { key: 'title', width: 220 },
-  { key: 'tags', width: 112 },
-  { key: 'commercialType', width: 96 },
-  { key: 'paymentMethod', width: 104 },
-  { key: 'commercialTotal', width: 104 },
-  { key: 'settlement', width: 96 },
-  { key: 'diagnosis', width: 96 },
-  { key: 'cost', width: 92 },
-  { key: 'published', width: 108 },
-  { key: 'violated', width: 94 },
-] as const
+import {
+  COMMERCIAL_TAG_FILTER_VALUE,
+  readVideoListFilters,
+  updateVideoListFilter,
+  updateVideoListTagFilter,
+  type VideoPlatformFilter,
+} from './videoListFilters'
+import { getVisibleVideoTableColumns, matchesVideoListSearch } from './videoListPresentation'
 
 const PLATFORM_DISPLAY_ORDER: Platform[] = ['shipinhao', 'xiaohongshu', 'douyin']
 const VIRTUAL_ROW_HEIGHT = 81
@@ -65,6 +58,9 @@ export function Videos() {
   const setFilterParam = (key: 'q' | 'status' | 'platform' | 'tag' | 'commercial', value?: string) => {
     setSearchParams(current => updateVideoListFilter(current, key, value), { replace: true })
   }
+  const setTagFilter = (value: string) => {
+    setSearchParams(current => updateVideoListTagFilter(current, value), { replace: true })
+  }
   const setVideoFilter = (status: VideoStatus | 'all') => {
     setSearchParams(current => {
       const withoutPlatform = updateVideoListFilter(current, 'platform')
@@ -88,18 +84,16 @@ export function Videos() {
       list = list.filter(v => v.status === filterStatus)
     }
     if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter(v =>
-        v.title.toLowerCase().includes(q) || v.commercialBrandName?.toLowerCase().includes(q))
+      list = list.filter(video => matchesVideoListSearch(video, search, !hideCommercialAmount))
     }
     if (filterTagId !== 'all') {
       list = list.filter(v => v.tagIds.includes(filterTagId))
     }
-    if (commercialOnly) {
+    if (commercialOnly && !hideCommercialAmount) {
       list = list.filter(v => v.isCommercial)
     }
     return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  }, [displayVideos, filterStatus, filterPlatform, filterTagId, commercialOnly, search])
+  }, [displayVideos, filterStatus, filterPlatform, filterTagId, commercialOnly, search, hideCommercialAmount])
 
   const updateVirtualWindow = useCallback(() => {
     const node = tableScrollRef.current
@@ -144,7 +138,11 @@ export function Videos() {
     () => filtered.slice(virtualWindow.start, virtualWindow.end),
     [filtered, virtualWindow],
   )
-  const tableColumnCount = hidePromotionCost ? TABLE_COLUMNS.length - 1 : TABLE_COLUMNS.length
+  const visibleTableColumns = getVisibleVideoTableColumns({
+    hideCommercialInfo: hideCommercialAmount,
+    hidePromotionCost,
+  })
+  const tableColumnCount = visibleTableColumns.length
 
   const handleCreate = () => {
     if (!newForm.title.trim()) return
@@ -179,15 +177,19 @@ export function Videos() {
         background: 'var(--bg-surface)',
       }}>
         <div style={{ width: 248, maxWidth: '100%' }}>
-          <Input placeholder="搜索视频或品牌方…" value={search} onChange={e => setFilterParam('q', e.target.value)} />
+          <Input placeholder={hideCommercialAmount ? '搜索视频…' : '搜索视频或品牌方…'} value={search} onChange={e => setFilterParam('q', e.target.value)} />
         </div>
-        {tags.length > 0 && (
+        {(tags.length > 0 || !hideCommercialAmount) && (
           <Select
             aria-label="按标签筛选"
-            value={filterTagId}
-            onChange={e => setFilterParam('tag', e.target.value)}
+            value={!hideCommercialAmount && commercialOnly ? COMMERCIAL_TAG_FILTER_VALUE : filterTagId}
+            onChange={e => setTagFilter(e.target.value)}
             options={[
               { value: 'all', label: '全部标签' },
+              ...(!hideCommercialAmount ? [{
+                value: COMMERCIAL_TAG_FILTER_VALUE,
+                label: `商单 (${displayVideos.filter(video => video.isCommercial).length})`,
+              }] : []),
               ...tags.map(tag => ({
                 value: tag.id,
                 label: `${tag.name} (${displayVideos.filter(video => video.tagIds.includes(tag.id)).length})`,
@@ -224,13 +226,6 @@ export function Videos() {
               activeBg="rgba(248,113,113,0.14)"
             />
           )}
-          <FilterChip
-            active={commercialOnly}
-            onClick={() => setFilterParam('commercial', commercialOnly ? undefined : '1')}
-            label={`商单 (${displayVideos.filter(video => video.isCommercial).length})`}
-            color="var(--accent)"
-            activeBg="var(--accent-alpha)"
-          />
         </div>
       </div>
 
@@ -250,22 +245,20 @@ export function Videos() {
             overflow: 'auto', maxWidth: '100%', maxHeight: 'calc(100vh - 220px)',
             background: 'var(--bg-surface)', boxShadow: 'var(--shadow-xs)',
           }}>
-          <table style={{ width: '100%', minWidth: TABLE_COLUMNS.filter(c => !hidePromotionCost || c.key !== 'cost').reduce((sum, col) => sum + col.width, 0), tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
+          <table style={{ width: '100%', minWidth: visibleTableColumns.reduce((sum, col) => sum + col.width, 0), tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
             <colgroup>
-              {TABLE_COLUMNS.map(col => (
-                hidePromotionCost && col.key === 'cost' ? null : <col key={col.key} style={{ width: col.width }} />
-              ))}
+              {visibleTableColumns.map(col => <col key={col.key} style={{ width: col.width }} />)}
             </colgroup>
             <thead>
               <tr>
                 <th style={{ width: 74, padding: '9px 8px 9px 16px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1 }} />
-                {['标题', '标签', '商单类型', '付款方式', '总金额', '结算状态', '平台诊断', ...(hidePromotionCost ? [] : ['投放金额']), '已发布', '已违规'].map(h => (
-                  <th key={h} style={{
+                {visibleTableColumns.slice(1).map(column => (
+                  <th key={column.key} style={{
                     textAlign: 'left', padding: '9px 16px', fontSize: 11, fontWeight: 600,
                     color: 'var(--text-tertiary)', letterSpacing: '0.04em',
                     borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)',
                     position: 'sticky', top: 0, zIndex: 1,
-                  }}>{h}</th>
+                  }}>{column.label}</th>
                 ))}
               </tr>
             </thead>
@@ -299,7 +292,7 @@ export function Videos() {
                       {video.description && (
                         <p style={{ fontSize: 11, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{video.description}</p>
                       )}
-                      {video.isCommercial && video.commercialBrandName && (
+                      {!hideCommercialAmount && video.isCommercial && video.commercialBrandName && (
                         <p style={{ fontSize: 10, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>品牌：{video.commercialBrandName}</p>
                       )}
                     </td>
@@ -318,36 +311,38 @@ export function Videos() {
                         )}
                       </div>
                     </td>
-                    <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                      {video.isCommercial
-                        ? getCommercialDealType(video) === 'platform' ? '平台商单' : '水下商单'
-                        : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
-                    </td>
-                    <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                      {video.isCommercial
-                        ? getCommercialDealType(video) === 'platform'
-                          ? '平台结算'
-                          : getUnderwaterPaymentMethod(video) === 'corporate_payment' ? '对公付款' : '个人转账'
-                        : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
-                    </td>
-                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                      {video.isCommercial && hideCommercialAmount
-                        ? <span style={{ color: 'var(--text-tertiary)' }}>已隐藏</span>
-                        : (() => {
+                    {!hideCommercialAmount && (
+                      <>
+                        <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                          {video.isCommercial
+                            ? getCommercialDealType(video) === 'platform' ? '平台商单' : '水下商单'
+                            : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                        </td>
+                        <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                          {video.isCommercial
+                            ? getCommercialDealType(video) === 'platform'
+                              ? '平台结算'
+                              : getUnderwaterPaymentMethod(video) === 'corporate_payment' ? '对公付款' : '个人转账'
+                            : <span style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                        </td>
+                        <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                          {(() => {
                             const total = getCommercialTotalAmount(video)
                             return total === undefined ? <span style={{ color: 'var(--text-tertiary)' }}>—</span> : `¥${total.toLocaleString()}`
                           })()}
-                    </td>
-                    <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                      {video.isCommercial && (() => {
-                        const summary = getCommercialSettlementSummary(video)
-                        return (
-                          <Badge color={summary === 'settled' ? 'var(--success)' : 'var(--warning)'}>
-                            {summary === 'settled' ? '已结算' : summary === 'partial' ? '部分结算' : '未结算'}
-                          </Badge>
-                        )
-                      })()}
-                    </td>
+                        </td>
+                        <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                          {video.isCommercial && (() => {
+                            const summary = getCommercialSettlementSummary(video)
+                            return (
+                              <Badge color={summary === 'settled' ? 'var(--success)' : 'var(--warning)'}>
+                                {summary === 'settled' ? '已结算' : summary === 'partial' ? '部分结算' : '未结算'}
+                              </Badge>
+                            )
+                          })()}
+                        </td>
+                      </>
+                    )}
                     <td style={{ padding: '10px 16px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       <PlatformDiagnosisIcons platforms={video.platforms} />
                     </td>

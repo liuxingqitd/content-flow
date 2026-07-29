@@ -1,6 +1,7 @@
 import type { VideoStatus } from '@/types'
 
 export type VideoPlatformFilter = 'violated'
+export const COMMERCIAL_TAG_FILTER_VALUE = '__commercial__'
 
 export interface VideoListFilters {
   search: string
@@ -34,4 +35,15 @@ export function updateVideoListFilter(
   if (!value || value === 'all') next.delete(key)
   else next.set(key, value)
   return next
+}
+
+export function updateVideoListTagFilter(
+  current: URLSearchParams,
+  value: string,
+): URLSearchParams {
+  const withoutTag = updateVideoListFilter(current, 'tag')
+  const reset = updateVideoListFilter(withoutTag, 'commercial')
+  return value === COMMERCIAL_TAG_FILTER_VALUE
+    ? updateVideoListFilter(reset, 'commercial', '1')
+    : updateVideoListFilter(reset, 'tag', value)
 }

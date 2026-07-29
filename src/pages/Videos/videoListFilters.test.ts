@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { readVideoListFilters, updateVideoListFilter } from './videoListFilters'
+import {
+  COMMERCIAL_TAG_FILTER_VALUE,
+  readVideoListFilters,
+  updateVideoListFilter,
+  updateVideoListTagFilter,
+} from './videoListFilters'
 
 describe('video list filters', () => {
   it('restores all supported filters from the URL', () => {
@@ -22,5 +27,24 @@ describe('video list filters', () => {
     })
     expect(updateVideoListFilter(new URLSearchParams('q=test&tag=tag-1'), 'tag', 'all').toString()).toBe('q=test')
     expect(updateVideoListFilter(new URLSearchParams('q=test'), 'commercial', '1').toString()).toBe('q=test&commercial=1')
+  })
+
+  it('switches atomically between commercial and regular tag filters', () => {
+    const shared = 'q=test&status=archived&platform=violated'
+
+    expect(updateVideoListTagFilter(
+      new URLSearchParams(`${shared}&tag=tag-1`),
+      COMMERCIAL_TAG_FILTER_VALUE,
+    ).toString()).toBe(`${shared}&commercial=1`)
+
+    expect(updateVideoListTagFilter(
+      new URLSearchParams(`${shared}&commercial=1`),
+      'tag-2',
+    ).toString()).toBe(`${shared}&tag=tag-2`)
+
+    expect(updateVideoListTagFilter(
+      new URLSearchParams(`${shared}&commercial=1`),
+      'all',
+    ).toString()).toBe(shared)
   })
 })

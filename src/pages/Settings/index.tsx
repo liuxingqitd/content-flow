@@ -308,12 +308,12 @@ export function Settings() {
                   ],
                 },
                 {
-                  title: '商单金额',
+                  title: '商单信息',
                   value: data?.settings.hideCommercialAmount ?? false,
                   onChange: (value: boolean) => updateSettings({ hideCommercialAmount: value }),
                   options: [
-                    { value: false, label: '显示商单金额' },
-                    { value: true, label: '隐藏商单金额' },
+                    { value: false, label: '显示商单信息' },
+                    { value: true, label: '隐藏商单信息' },
                   ],
                 },
               ] as const).map(group => (
@@ -344,7 +344,7 @@ export function Settings() {
               ))}
             </div>
             <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>
-              演示或分享时可分别隐藏投放成本和商单金额相关数据
+              演示或分享时可分别隐藏投放成本和商单相关数据
             </p>
           </section>
 

@@ -360,7 +360,8 @@ export function VideoDetail() {
               </div>
             </div>
 
-            <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+            {!hideCommercialAmount && (
+              <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
                   <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>商单</p>
@@ -441,22 +442,18 @@ export function VideoDetail() {
                               <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 400, color: 'var(--text-tertiary)' }}>结算给平台</span>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                              {hideCommercialAmount ? (
-                                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', alignSelf: 'end', paddingBottom: 8 }}>金额已隐藏</div>
-                              ) : (
-                                <Input
-                                  label="金额（元）"
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  placeholder="未设置"
-                                  value={settlement?.amount ?? ''}
-                                  onChange={e => {
-                                    const amount = Number(e.target.value)
-                                    updatePlatformCommercialSettlement(platform, { amount: e.target.value && Number.isFinite(amount) && amount > 0 ? amount : undefined })
-                                  }}
-                                />
-                              )}
+                              <Input
+                                label="金额（元）"
+                                type="number"
+                                min="0"
+                                step="1"
+                                placeholder="未设置"
+                                value={settlement?.amount ?? ''}
+                                onChange={e => {
+                                  const amount = Number(e.target.value)
+                                  updatePlatformCommercialSettlement(platform, { amount: e.target.value && Number.isFinite(amount) && amount > 0 ? amount : undefined })
+                                }}
+                              />
                               <Input
                                 label="结算周期"
                                 placeholder="如：发布后30天"
@@ -479,20 +476,16 @@ export function VideoDetail() {
                     </div>
                   ) : (
                     <>
-                      {hideCommercialAmount ? (
-                        <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>商单金额已在隐私设置中隐藏</p>
-                      ) : (
-                        <Input
-                          label="一口价（元）"
-                          type="number"
-                          min="0"
-                          step="1"
-                          placeholder="商单金额"
-                          value={commercialAmountDraft ?? (video.commercialAmount != null ? String(video.commercialAmount) : '')}
-                          onChange={e => setCommercialAmountDraft(e.target.value)}
-                          onBlur={handleCommercialAmountBlur}
-                        />
-                      )}
+                      <Input
+                        label="一口价（元）"
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="商单金额"
+                        value={commercialAmountDraft ?? (video.commercialAmount != null ? String(video.commercialAmount) : '')}
+                        onChange={e => setCommercialAmountDraft(e.target.value)}
+                        onBlur={handleCommercialAmountBlur}
+                      />
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         <Select
                           label="结算状态"
@@ -517,7 +510,8 @@ export function VideoDetail() {
                   )}
                 </div>
               )}
-            </div>
+              </div>
+            )}
 
             <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
               <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>关联逐字稿</p>
