@@ -23,7 +23,7 @@ function parsePublishedAt(raw: string): string {
   return now()
 }
 
-interface ShipinhaoJsonRow {
+export interface ShipinhaoJsonRow {
   description: string
   videoId: string
   publishedAt: string

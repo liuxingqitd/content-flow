@@ -4,6 +4,7 @@ import type { AppData, Video, Topic, Script, Tag, VideoMetrics, AppSettings, Vid
 import { now } from '@/utils/date'
 import { videoId, topicId, scriptId, tagId, metricId, checklistItemId, videoRelationId, promotionRecordId } from '@/utils/id'
 import { readAppData, writeAppData } from '@/services/fileSystem'
+import { deleteTopicAndDetach } from './topicData'
 
 interface AppState {
   data: AppData | null
@@ -434,7 +435,7 @@ export const useAppStore = create<AppState>()(
     deleteTopic: (id) => {
       set(s => {
         if (!s.data) return
-        s.data.topics = s.data.topics.filter(t => t.id !== id)
+        deleteTopicAndDetach(s.data, id, now())
       })
       scheduleSave(get)
     },
@@ -488,9 +489,7 @@ export const useAppStore = create<AppState>()(
           linkedVideo.statusHistory.push({ status: 'archived', changedAt: now() })
           linkedVideo.updatedAt = now()
         }
-        topic.abandonedAt = now()
-        topic.updatedAt = now()
-        s.data.topics = s.data.topics.filter(t => t.id !== id)
+        deleteTopicAndDetach(s.data, id, now())
       })
       scheduleSave(get)
     },

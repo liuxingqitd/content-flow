@@ -4,11 +4,13 @@ import { useAppStore } from '@/store/appStore'
 import { PageContainer } from '@/components/layout/PageContainer'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
 import { EmptyState } from '@/components/ui/EmptyState'
 import type { Topic, TopicStatus } from '@/types'
 import { TOPIC_STATUS_LABELS, VIDEO_STATUS_LABELS } from '@/types'
 import { fromNow } from '@/utils/date'
+import { parsePotentialScore, sortTopics, type TopicSortMode } from './topicListUtils'
 
 const STATUS_COLORS: Record<TopicStatus, string> = {
   inspiration: 'var(--status-topic, var(--status-topic-text))',
@@ -36,18 +38,19 @@ export function Topics() {
   const topics = useAppStore(s => s.data?.topics ?? [])
   const addTopic = useAppStore(s => s.addTopic)
   const updateTopic = useAppStore(s => s.updateTopic)
+  const deleteTopic = useAppStore(s => s.deleteTopic)
   const adoptTopic = useAppStore(s => s.adoptTopic)
-  const abandonTopic = useAppStore(s => s.abandonTopic)
   const scripts = useAppStore(s => s.data?.scripts ?? [])
   const addScript = useAppStore(s => s.addScript)
   const updateScript = useAppStore(s => s.updateScript)
   const videos = useAppStore(s => s.data?.videos ?? [])
 
   const [filterStatus, setFilterStatus] = useState<TopicStatus | 'all'>('inspiration')
+  const [sortMode, setSortMode] = useState<TopicSortMode>('default')
   const [modal, setModal] = useState<{ mode: 'new' | 'edit'; topic?: Topic } | null>(null)
-  const [form, setForm] = useState({ title: '', description: '', inspiration: '' })
+  const [form, setForm] = useState({ title: '', description: '', inspiration: '', potentialScore: '' })
   const [adoptedToast, setAdoptedToast] = useState<string | null>(null)
-  const [abandonConfirm, setAbandonConfirm] = useState<Topic | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<Topic | null>(null)
   const [linkModal, setLinkModal] = useState<Topic | null>(null)
   const [linkScriptId, setLinkScriptId] = useState<string>('')
   const [linkVideoModal, setLinkVideoModal] = useState<Topic | null>(null)
@@ -55,12 +58,14 @@ export function Topics() {
   const linkTopicToVideo = useAppStore(s => s.linkTopicToVideo)
 
   const filtered = useMemo(() => {
-    if (filterStatus === 'all') return topics
-    return topics.filter(t => t.status === filterStatus)
-  }, [topics, filterStatus])
+    const byStatus = filterStatus === 'all' ? topics : topics.filter(t => t.status === filterStatus)
+    return sortTopics(byStatus, sortMode)
+  }, [topics, filterStatus, sortMode])
+
+  const parsedPotentialScore = parsePotentialScore(form.potentialScore)
 
   const openNew = () => {
-    setForm({ title: '', description: '', inspiration: '' })
+    setForm({ title: '', description: '', inspiration: '', potentialScore: '' })
     setModal({ mode: 'new' })
   }
 
@@ -69,15 +74,18 @@ export function Topics() {
       title: topic.title,
       description: topic.description ?? '',
       inspiration: topic.inspiration ?? '',
+      potentialScore: topic.potentialScore?.toString() ?? '',
     })
     setModal({ mode: 'edit', topic })
   }
 
   const handleSave = () => {
+    if (parsedPotentialScore.error) return
     if (modal?.mode === 'new') {
       addTopic({
         title: form.title.trim(),
         description: form.description.trim() || undefined,
+        potentialScore: parsedPotentialScore.value,
         status: 'inspiration',
         tagIds: [],
         inspiration: form.inspiration.trim() || undefined,
@@ -87,6 +95,7 @@ export function Topics() {
         title: form.title.trim(),
         description: form.description.trim() || undefined,
         inspiration: form.inspiration.trim() || undefined,
+        potentialScore: parsedPotentialScore.value,
       })
     }
     setModal(null)
@@ -105,10 +114,10 @@ export function Topics() {
     setTimeout(() => setAdoptedToast(null), 3000)
   }
 
-  const handleAbandonConfirm = () => {
-    if (!abandonConfirm) return
-    abandonTopic(abandonConfirm.id)
-    setAbandonConfirm(null)
+  const handleDeleteConfirm = () => {
+    if (!deleteConfirm) return
+    deleteTopic(deleteConfirm.id)
+    setDeleteConfirm(null)
   }
 
   const openLinkModal = (e: React.MouseEvent, topic: Topic) => {
@@ -162,46 +171,60 @@ export function Topics() {
         </Button>
       }
     >
-      {/* Status filter */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 2, marginBottom: 16, flexWrap: 'wrap',
-        width: 'fit-content', maxWidth: '100%', padding: 3,
-        borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)',
-        background: 'var(--bg-surface)',
-      }}>
-        <button
-          onClick={() => setFilterStatus('all')}
-          style={{
-            padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-            border: 'none', cursor: 'pointer',
-            background: filterStatus === 'all' ? 'var(--accent-subtle)' : 'transparent',
-            color: filterStatus === 'all' ? 'var(--accent)' : 'var(--text-secondary)',
-          }}
-          onMouseEnter={e => { if (filterStatus !== 'all') (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-          onMouseLeave={e => { if (filterStatus !== 'all') (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-        >
-          全部 ({topics.length})
-        </button>
-        {(Object.keys(TOPIC_STATUS_LABELS) as TopicStatus[]).map(s => {
-          const count = topics.filter(t => t.status === s).length
-          const active = filterStatus === s
-          return (
-            <button
-              key={s}
-              onClick={() => setFilterStatus(s === filterStatus ? 'all' : s)}
-              style={{
-                padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                border: 'none', cursor: 'pointer', transition: 'background .1s',
-                background: active ? STATUS_BG[s] : 'transparent',
-                color: active ? STATUS_COLORS[s] : 'var(--text-secondary)',
-              }}
-              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-            >
-              {TOPIC_STATUS_LABELS[s]} {count > 0 && `(${count})`}
-            </button>
-          )
-        })}
+      {/* Filters and sorting */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap',
+          width: 'fit-content', maxWidth: '100%', padding: 3,
+          borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)',
+          background: 'var(--bg-surface)',
+        }}>
+          <button
+            onClick={() => setFilterStatus('all')}
+            style={{
+              padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+              border: 'none', cursor: 'pointer',
+              background: filterStatus === 'all' ? 'var(--accent-subtle)' : 'transparent',
+              color: filterStatus === 'all' ? 'var(--accent)' : 'var(--text-secondary)',
+            }}
+            onMouseEnter={e => { if (filterStatus !== 'all') (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
+            onMouseLeave={e => { if (filterStatus !== 'all') (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          >
+            全部 ({topics.length})
+          </button>
+          {(Object.keys(TOPIC_STATUS_LABELS) as TopicStatus[]).map(s => {
+            const count = topics.filter(t => t.status === s).length
+            const active = filterStatus === s
+            return (
+              <button
+                key={s}
+                onClick={() => setFilterStatus(s === filterStatus ? 'all' : s)}
+                style={{
+                  padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                  border: 'none', cursor: 'pointer', transition: 'background .1s',
+                  background: active ? STATUS_BG[s] : 'transparent',
+                  color: active ? STATUS_COLORS[s] : 'var(--text-secondary)',
+                }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              >
+                {TOPIC_STATUS_LABELS[s]} {count > 0 && `(${count})`}
+              </button>
+            )
+          })}
+        </div>
+
+        <Select
+          aria-label="选题排序"
+          value={sortMode}
+          onChange={e => setSortMode(e.target.value as TopicSortMode)}
+          options={[
+            { value: 'default', label: '默认顺序' },
+            { value: 'score-desc', label: '潜力分：高到低' },
+            { value: 'score-asc', label: '潜力分：低到高' },
+          ]}
+          style={{ width: 156 }}
+        />
       </div>
 
       {filtered.length === 0 ? (
@@ -243,7 +266,36 @@ export function Topics() {
                   el.style.boxShadow = 'none'
                 }}
               >
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4, marginBottom: 6, letterSpacing: '-0.01em' }}>{topic.title}</h3>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
+                  <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4, letterSpacing: '-0.01em', flex: 1 }}>{topic.title}</h3>
+                  <span
+                    title="选题潜力分（发布前人工评估）"
+                    style={{
+                      fontSize: 10,
+                      lineHeight: 1,
+                      padding: '4px 7px',
+                      borderRadius: 999,
+                      flexShrink: 0,
+                      fontWeight: typeof topic.potentialScore === 'number' ? 700 : 500,
+                      color: typeof topic.potentialScore !== 'number'
+                        ? 'var(--text-tertiary)'
+                        : topic.potentialScore >= 80
+                          ? 'var(--status-published, var(--status-published-text))'
+                          : topic.potentialScore >= 60
+                            ? 'var(--accent)'
+                            : 'var(--danger)',
+                      background: typeof topic.potentialScore !== 'number'
+                        ? 'var(--bg-raised, var(--bg-elevated))'
+                        : topic.potentialScore >= 80
+                          ? 'var(--status-published-bg)'
+                          : topic.potentialScore >= 60
+                            ? 'var(--accent-subtle)'
+                            : 'rgba(248,113,113,0.12)',
+                    }}
+                  >
+                    {typeof topic.potentialScore === 'number' ? `${topic.potentialScore} 分` : '未评分'}
+                  </span>
+                </div>
 
                 {topic.description && (
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{topic.description}</p>
@@ -351,22 +403,21 @@ export function Topics() {
                       </button>
                     )}
 
-                    {!isReadOnly && (
-                      <button
-                        onClick={e => { e.stopPropagation(); setAbandonConfirm(topic) }}
-                        style={{
-                          padding: 4, borderRadius: 4, border: 'none', cursor: 'pointer',
-                          background: 'transparent', color: 'var(--text-tertiary)', transition: 'all .1s',
-                        }}
-                        onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(248,113,113,0.12)'; el.style.color = 'var(--danger)' }}
-                        onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'transparent'; el.style.color = 'var(--text-tertiary)' }}
-                        title="放弃此选题"
-                      >
-                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                          <path d="M1 3h10M4 3V2a1 1 0 011-1h2a1 1 0 011 1v1M5 5.5v3M7 5.5v3M2 3l.6 7a1 1 0 001 .9h4.8a1 1 0 001-.9L10 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                        </svg>
-                      </button>
-                    )}
+                    <button
+                      onClick={e => { e.stopPropagation(); setDeleteConfirm(topic) }}
+                      style={{
+                        padding: 4, borderRadius: 4, border: 'none', cursor: 'pointer',
+                        background: 'transparent', color: 'var(--text-tertiary)', transition: 'all .1s',
+                      }}
+                      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'rgba(248,113,113,0.12)'; el.style.color = 'var(--danger)' }}
+                      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'transparent'; el.style.color = 'var(--text-tertiary)' }}
+                      title="删除选题"
+                      aria-label={`删除选题：${topic.title}`}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                        <path d="M1 3h10M4 3V2a1 1 0 011-1h2a1 1 0 011 1v1M5 5.5v3M7 5.5v3M2 3l.6 7a1 1 0 001 .9h4.8a1 1 0 001-.9L10 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                      </svg>
+                    </button>
                   </div>
 
                   <span style={{ fontSize: 10, color: 'var(--text-tertiary)', flexShrink: 0 }}>{fromNow(topic.updatedAt)}</span>
@@ -473,38 +524,49 @@ export function Topics() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setModal(null)}>取消</Button>
-            <Button variant="primary" onClick={handleSave} disabled={!form.title.trim()}>保存</Button>
+            <Button variant="primary" onClick={handleSave} disabled={!form.title.trim() || !!parsedPotentialScore.error}>保存</Button>
           </>
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Input label="选题标题 *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} autoFocus />
+          <Input
+            label="选题潜力分（0–100）"
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            value={form.potentialScore}
+            onChange={e => setForm(f => ({ ...f, potentialScore: e.target.value }))}
+            placeholder="未评分"
+            error={parsedPotentialScore.error}
+          />
           <Textarea label="角度描述" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="这个选题的独特角度或核心卖点" />
           <Input label="灵感来源" value={form.inspiration} onChange={e => setForm(f => ({ ...f, inspiration: e.target.value }))} placeholder="某个爆款视频、热搜词或用户反馈" />
         </div>
       </Modal>
 
-      {/* Abandon Confirm */}
+      {/* Delete Confirm */}
       <Modal
-        open={!!abandonConfirm}
-        onClose={() => setAbandonConfirm(null)}
-        title="放弃此选题"
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        title="删除选题"
         size="sm"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setAbandonConfirm(null)}>取消</Button>
-            <Button variant="danger" onClick={handleAbandonConfirm}>确认放弃</Button>
+            <Button variant="ghost" onClick={() => setDeleteConfirm(null)}>取消</Button>
+            <Button variant="danger" onClick={handleDeleteConfirm}>确认删除</Button>
           </>
         }
       >
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          {abandonConfirm && videos.some(v => v.topicId === abandonConfirm.id) ? (
+          {deleteConfirm && (videos.some(v => v.topicId === deleteConfirm.id) || scripts.some(s => s.topicId === deleteConfirm.id)) ? (
             <>
-              选题「<strong style={{ color: 'var(--text-primary)' }}>{abandonConfirm?.title}</strong>」已有关联的看板卡片，放弃后该卡片将被自动归档。
+              确认删除选题「<strong style={{ color: 'var(--text-primary)' }}>{deleteConfirm.title}</strong>」？关联的视频和逐字稿会保留，但会解除与该选题的关联。此操作不可撤销。
             </>
           ) : (
             <>
-              确认放弃选题「<strong style={{ color: 'var(--text-primary)' }}>{abandonConfirm?.title}</strong>」？此操作不可撤销。
+              确认删除选题「<strong style={{ color: 'var(--text-primary)' }}>{deleteConfirm?.title}</strong>」？此操作不可撤销。
             </>
           )}
         </p>

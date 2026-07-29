@@ -16,7 +16,7 @@ function parsePublishedAt(raw: string): string {
   return now()
 }
 
-interface DouyinJsonRow {
+export interface DouyinJsonRow {
   title: string
   publishedAt: string
   genre: string

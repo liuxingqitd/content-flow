@@ -4,8 +4,8 @@ import { useAppStore } from '@/store/appStore'
 import { PageContainer } from '@/components/layout/PageContainer'
 import type { DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord } from '@/types'
 import { parseXiaohongshuExcel, mergeXiaohongshuRecords } from '@/services/importXiaohongshu'
-import { parseDouyinJson, mergeDouyinRecords } from '@/services/importDouyin'
-import { parseShipinhaoJson, mergeShipinhaoRecords } from '@/services/importShipinhao'
+import { parseDouyinJson, mergeDouyinRecords, type DouyinJsonRow } from '@/services/importDouyin'
+import { parseShipinhaoJson, mergeShipinhaoRecords, type ShipinhaoJsonRow } from '@/services/importShipinhao'
 import { now } from '@/utils/date'
 import { genId } from '@/utils/id'
 
@@ -383,15 +383,15 @@ export function Analytics() {
     setImportError(null)
     try {
       const text = await file.text()
-      let rows: Record<string, string>[]
+      let rows: DouyinJsonRow[]
       if (file.name.endsWith('.json')) {
-        rows = JSON.parse(text)
+        rows = JSON.parse(text) as DouyinJsonRow[]
       } else if (file.name.endsWith('.csv')) {
-        rows = parseCSV(text)
+        rows = parseCSV(text) as unknown as DouyinJsonRow[]
       } else {
         throw new Error('抖音导入支持 .json 或 .csv 格式，请先用 skill 中的 Python 脚本将 xlsx 转为 JSON')
       }
-      const incoming = parseDouyinJson(rows as any)
+      const incoming = parseDouyinJson(rows)
       const { merged, newCount, updatedCount, autoMatched } = mergeDouyinRecords(douyinRecords, incoming, videos)
       setDouyinRecords(merged)
       setToastMsg(`抖音: 新增 ${newCount}，更新 ${updatedCount}，自动关联 ${autoMatched} 个视频`)
@@ -411,15 +411,15 @@ export function Analytics() {
     setImportError(null)
     try {
       const text = await file.text()
-      let rows: Record<string, string>[]
+      let rows: ShipinhaoJsonRow[]
       if (file.name.endsWith('.json')) {
-        rows = JSON.parse(text)
+        rows = JSON.parse(text) as ShipinhaoJsonRow[]
       } else if (file.name.endsWith('.csv')) {
-        rows = parseCSV(text)
+        rows = parseCSV(text) as unknown as ShipinhaoJsonRow[]
       } else {
         throw new Error('视频号导入支持 .json 或 .csv 格式')
       }
-      const incoming = parseShipinhaoJson(rows as any)
+      const incoming = parseShipinhaoJson(rows)
       const { merged, newCount, updatedCount, autoMatched } = mergeShipinhaoRecords(shipinhaoRecords, incoming, videos)
       setShipinhaoRecords(merged)
       setToastMsg(`视频号: 新增 ${newCount}，更新 ${updatedCount}，自动关联 ${autoMatched} 个视频`)
@@ -438,7 +438,7 @@ export function Analytics() {
     setImportError(null)
     setToastMsg(null)
     try {
-      const [dyRows, sphRows, xhsRows]: [Record<string, string>[], Record<string, string>[], Record<string, string>[]] =
+      const [dyRows, sphRows, xhsRows]: [DouyinJsonRow[], ShipinhaoJsonRow[], Record<string, string>[]] =
         await Promise.all([
           fetch('/data/douyin_import.json').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
           fetch('/data/shipinhao_import.json').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
@@ -448,13 +448,13 @@ export function Analytics() {
       const msgs: string[] = []
 
       // 抖音
-      const dyIncoming = parseDouyinJson(dyRows as any)
+      const dyIncoming = parseDouyinJson(dyRows)
       const dyResult = mergeDouyinRecords(douyinRecords, dyIncoming, videos)
       setDouyinRecords(dyResult.merged)
       msgs.push(`抖音: +${dyResult.newCount} 更新${dyResult.updatedCount} 关联${dyResult.autoMatched}`)
 
       // 视频号
-      const sphIncoming = parseShipinhaoJson(sphRows as any)
+      const sphIncoming = parseShipinhaoJson(sphRows)
       const sphResult = mergeShipinhaoRecords(shipinhaoRecords, sphIncoming, videos)
       setShipinhaoRecords(sphResult.merged)
       msgs.push(`视频号: +${sphResult.newCount} 更新${sphResult.updatedCount} 关联${sphResult.autoMatched}`)

@@ -138,6 +138,8 @@ export interface Topic {
   id: string
   title: string
   description?: string
+  /** 发布前人工评估的选题潜力分，范围 0–100。 */
+  potentialScore?: number
   status: TopicStatus
   tagIds: string[]
   inspiration?: string

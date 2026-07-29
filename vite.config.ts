@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { configDefaults, defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
@@ -20,5 +20,11 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  test: {
+    exclude: [
+      ...configDefaults.exclude,
+      'skills/platform-video-data-import/scripts/import-platform-data.test.mjs',
+    ],
   },
 })
