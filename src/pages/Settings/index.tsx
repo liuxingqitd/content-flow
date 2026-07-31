@@ -482,7 +482,7 @@ export function Settings() {
           <section>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14, gap: 16 }}>
               <div>
-                {sectionTitle('剪辑中 → 已发布（发布前检查项）')}
+                {sectionTitle('待发布 → 已发布（发布前检查项）')}
               </div>
               <Button variant="secondary" size="sm" onClick={openNewChecklist}>+ 新建检查项</Button>
             </div>

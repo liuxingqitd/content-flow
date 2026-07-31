@@ -8,7 +8,6 @@ import {
   loadCoverThumbnail,
 } from '@/services/coverThumbnailCache'
 import { PageContainer } from '@/components/layout/PageContainer'
-import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
@@ -20,10 +19,9 @@ import {
 } from './commercialUtils'
 import { PlatformIcon } from '@/components/PlatformIcon'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { Modal } from '@/components/ui/Modal'
-import { Textarea } from '@/components/ui/Input'
 import type { Platform, PlatformPublish, PlatformPublishStatus, VideoStatus } from '@/types'
-import { VIDEO_STATUS_LABELS } from '@/types'
+import { VIDEO_STATUS_LABELS, VIDEO_STATUS_ORDER } from '@/types'
+import { StatusBadge } from '@/components/StatusBadge'
 import {
   COMMERCIAL_TAG_FILTER_VALUE,
   readVideoListFilters,
@@ -32,6 +30,7 @@ import {
   type VideoPlatformFilter,
 } from './videoListFilters'
 import { getVisibleVideoTableColumns, matchesVideoListSearch } from './videoListPresentation'
+import { compareVideoLibraryAddedAtDesc, isVideoInLibrary } from './videoWorkflow'
 
 const PLATFORM_DISPLAY_ORDER: Platform[] = ['shipinhao', 'xiaohongshu', 'douyin']
 const VIRTUAL_ROW_HEIGHT = 81
@@ -44,13 +43,10 @@ export function Videos() {
   const tags = useAppStore(s => s.data?.tags ?? [])
   const hidePromotionCost = useAppStore(s => s.data?.settings.hidePromotionCost ?? false)
   const hideCommercialAmount = useAppStore(s => s.data?.settings.hideCommercialAmount ?? false)
-  const addVideo = useAppStore(s => s.addVideo)
 
-  const displayVideos = useMemo(() => videos.filter(v => v.status === 'published' || v.status === 'archived'), [videos])
+  const displayVideos = useMemo(() => videos.filter(isVideoInLibrary), [videos])
 
   const { search, status: filterStatus, platform: filterPlatform, tagId: filterTagId, commercialOnly } = readVideoListFilters(searchParams)
-  const [newModal, setNewModal] = useState(false)
-  const [newForm, setNewForm] = useState({ title: '', description: '' })
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
   const [virtualWindow, setVirtualWindow] = useState({ start: 0, end: 40 })
@@ -92,7 +88,7 @@ export function Videos() {
     if (commercialOnly && !hideCommercialAmount) {
       list = list.filter(v => v.isCommercial)
     }
-    return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    return [...list].sort(compareVideoLibraryAddedAtDesc)
   }, [displayVideos, filterStatus, filterPlatform, filterTagId, commercialOnly, search, hideCommercialAmount])
 
   const updateVirtualWindow = useCallback(() => {
@@ -144,31 +140,10 @@ export function Videos() {
   })
   const tableColumnCount = visibleTableColumns.length
 
-  const handleCreate = () => {
-    if (!newForm.title.trim()) return
-    addVideo({
-      title: newForm.title.trim(),
-      description: newForm.description.trim() || undefined,
-      status: 'published',
-      tagIds: [],
-      platforms: [],
-    })
-    setNewModal(false)
-    setNewForm({ title: '', description: '' })
-  }
-
   return (
     <PageContainer
       title="视频库"
       subtitle={`${displayVideos.length} 条视频`}
-      actions={
-        <Button variant="primary" size="sm" onClick={() => setNewModal(true)}>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-          新建视频
-        </Button>
-      }
     >
       {/* Filters */}
       <div style={{
@@ -205,7 +180,7 @@ export function Videos() {
             onClick={() => setVideoFilter('all')}
             label={`全部 (${displayVideos.length})`}
           />
-          {(['published', 'archived'] as const).map(s => {
+          {VIDEO_STATUS_ORDER.map(s => {
             const count = displayVideos.filter(v => v.status === s).length
             if (count === 0) return null
             return (
@@ -232,9 +207,8 @@ export function Videos() {
       {/* Table */}
       {filtered.length === 0 ? (
         <EmptyState
-          title={displayVideos.length === 0 ? '暂无已发布的视频' : '没有符合筛选条件的视频'}
-          description={displayVideos.length === 0 ? '看板中的视频发布后将显示在这里' : '请尝试更换标签、状态或搜索关键词'}
-          action={<Button variant="primary" size="sm" onClick={() => setNewModal(true)}>新建视频</Button>}
+          title={displayVideos.length === 0 ? '暂无视频记录' : '没有符合筛选条件的视频'}
+          description={displayVideos.length === 0 ? '看板中的视频进入待发布后将显示在这里' : '请尝试更换标签、状态或搜索关键词'}
         />
       ) : (
         <div
@@ -288,7 +262,10 @@ export function Videos() {
                       <CoverThumb videoId={video.id} ext={video.coverPortrait} revision={video.updatedAt} />
                     </td>
                     <td style={{ padding: '10px 16px', minWidth: 0, borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                      <p style={{ fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>{video.title}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <p style={{ flex: 1, minWidth: 0, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>{video.title}</p>
+                        <StatusBadge status={video.status} />
+                      </div>
                       {video.description && (
                         <p style={{ fontSize: 11, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{video.description}</p>
                       )}
@@ -373,23 +350,6 @@ export function Videos() {
         </div>
       )}
 
-      <Modal
-        open={newModal}
-        onClose={() => setNewModal(false)}
-        title="新建视频"
-        size="md"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setNewModal(false)}>取消</Button>
-            <Button variant="primary" onClick={handleCreate} disabled={!newForm.title.trim()}>创建</Button>
-          </>
-        }
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Input label="视频标题 *" placeholder="例：普通人如何在30岁前实现财务自由" value={newForm.title} onChange={e => setNewForm(f => ({ ...f, title: e.target.value }))} autoFocus />
-          <Textarea label="简介（可选）" placeholder="视频的核心内容或角度" rows={3} value={newForm.description} onChange={e => setNewForm(f => ({ ...f, description: e.target.value }))} />
-        </div>
-      </Modal>
     </PageContainer>
   )
 }

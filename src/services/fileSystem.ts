@@ -116,6 +116,29 @@ export function migratePlatformPublishingData(data: AppData): boolean {
   return changed
 }
 
+export function migrateVideoLibraryRecords(data: AppData): boolean {
+  const version = Number.parseFloat(data.version)
+  if (Number.isFinite(version) && version >= 1.1) return false
+
+  data.videos.forEach(video => {
+    if (video.videoLibraryAddedAt || (video.status !== 'published' && video.status !== 'archived')) return
+
+    const validDates = [
+      ...video.statusHistory
+        .filter(entry => entry.status === 'published')
+        .map(entry => entry.changedAt),
+      ...video.platforms.map(platform => platform.publishedAt),
+    ]
+      .filter((value): value is string =>
+        typeof value === 'string' && !Number.isNaN(new Date(value).getTime()))
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+
+    video.videoLibraryAddedAt = validDates[0] ?? video.createdAt
+  })
+  data.version = '1.1'
+  return true
+}
+
 export interface DataDirectoryInfo {
   label: string
   kind: 'path' | 'name'
@@ -326,7 +349,7 @@ async function writeSplitAppData(dir: FileSystemDirectoryHandle, data: AppData):
     writeSingleFile(dir, 'xiaohongshuRecords.json', data.xiaohongshuRecords),
   ])
   // version 文件留存供将来使用
-  await writeSingleFile(dir, 'version.json', { version: data.version ?? '1.0' })
+  await writeSingleFile(dir, 'version.json', { version: data.version ?? '1.1' })
 }
 
 async function writeTauriSplitAppData(dir: TauriDirectoryHandle, data: AppData): Promise<void> {
@@ -346,7 +369,7 @@ async function writeTauriSplitAppData(dir: TauriDirectoryHandle, data: AppData):
     writeTauriJsonFile(dir, 'shipinhaoRecords.json', data.shipinhaoRecords),
     writeTauriJsonFile(dir, 'xiaohongshuRecords.json', data.xiaohongshuRecords),
   ])
-  await writeTauriJsonFile(dir, 'version.json', { version: data.version ?? '1.0' })
+  await writeTauriJsonFile(dir, 'version.json', { version: data.version ?? '1.1' })
 }
 
 async function readSplitAppData(dir: FileSystemDirectoryHandle): Promise<AppData> {
@@ -519,6 +542,7 @@ export async function readAppData(): Promise<AppData> {
   let changed = false
 
   if (migratePlatformPublishingData(data)) changed = true
+  if (migrateVideoLibraryRecords(data)) changed = true
 
   // One-time migration: add video relations collection for existing installations
   if (!data.videoRelations) {
@@ -635,6 +659,7 @@ async function readTauriAppData(dir: TauriDirectoryHandle): Promise<AppData> {
   let changed = false
 
   if (migratePlatformPublishingData(data)) changed = true
+  if (migrateVideoLibraryRecords(data)) changed = true
 
   if (!data.videoRelations) {
     data.videoRelations = []

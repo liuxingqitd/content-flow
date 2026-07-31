@@ -6,6 +6,7 @@ export type VideoStatus =
   | 'review'
   | 'filming'
   | 'editing'
+  | 'pending_publish'
   | 'published'
   | 'archived'
 
@@ -118,6 +119,8 @@ export interface Video {
   thumbnailNote?: string
   duration?: number
   description?: string
+  /** First time this production item became a video-library record. */
+  videoLibraryAddedAt?: string
   createdAt: string
   updatedAt: string
   notes?: string
@@ -277,12 +280,13 @@ export const VIDEO_STATUS_LABELS: Record<VideoStatus, string> = {
   review: '待审核',
   filming: '拍摄中',
   editing: '剪辑中',
+  pending_publish: '待发布',
   published: '已发布',
   archived: '已归档',
 }
 
 export const VIDEO_STATUS_ORDER: VideoStatus[] = [
-  'topic', 'scripting', 'review', 'filming', 'editing', 'published', 'archived',
+  'topic', 'scripting', 'review', 'filming', 'editing', 'pending_publish', 'published', 'archived',
 ]
 
 export const TOPIC_STATUS_LABELS: Record<TopicStatus, string> = {

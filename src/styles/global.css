@@ -51,6 +51,9 @@
   --status-editing-bg:     rgba(124,88,237,0.16);
   --status-editing-text:   #a78bfa;
   --status-editing-border: rgba(124,88,237,0.25);
+  --status-pending-publish-bg:     rgba(20,184,166,0.16);
+  --status-pending-publish-text:   #2dd4bf;
+  --status-pending-publish-border: rgba(20,184,166,0.25);
   --status-published-bg:   rgba(16,185,129,0.16);
   --status-published-text: #34d399;
   --status-published-border: rgba(16,185,129,0.25);
@@ -62,6 +65,7 @@
   --status-review: var(--status-review-text);
   --status-filming: var(--status-filming-text);
   --status-editing: var(--status-editing-text);
+  --status-pending-publish: var(--status-pending-publish-text);
   --status-published: var(--status-published-text);
   --status-archived: var(--status-archived-text);
 
@@ -160,6 +164,9 @@
   --status-editing-bg:     rgba(124,58,237,0.10);
   --status-editing-text:   #7c3aed;
   --status-editing-border: rgba(124,58,237,0.20);
+  --status-pending-publish-bg:     rgba(13,148,136,0.10);
+  --status-pending-publish-text:   #0d9488;
+  --status-pending-publish-border: rgba(13,148,136,0.20);
   --status-published-bg:   rgba(5,150,105,0.10);
   --status-published-text: #059669;
   --status-published-border: rgba(5,150,105,0.20);

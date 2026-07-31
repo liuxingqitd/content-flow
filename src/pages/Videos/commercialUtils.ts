@@ -63,10 +63,15 @@ export function getCommercialTotalAmount(video: Video): number | undefined {
 }
 
 export function getCommercialSettlementSummary(video: Video): CommercialSettlementStatus | 'partial' | undefined {
-  const entries = getCommercialAmountEntries(video)
-  if (entries.length === 0) return video.isCommercial ? 'unsettled' : undefined
-  const settledCount = entries.filter(entry => entry.settlementStatus === 'settled').length
+  if (!video.isCommercial) return undefined
+  if (getCommercialDealType(video) === 'underwater') {
+    return video.commercialSettlementStatus ?? 'unsettled'
+  }
+
+  const settlements = getPlatformCommercialSettlements(video)
+  if (settlements.length === 0) return video.commercialSettlementStatus ?? 'unsettled'
+  const settledCount = settlements.filter(entry => entry.settlementStatus === 'settled').length
   if (settledCount === 0) return 'unsettled'
-  if (settledCount === entries.length) return 'settled'
+  if (settledCount === settlements.length) return 'settled'
   return 'partial'
 }

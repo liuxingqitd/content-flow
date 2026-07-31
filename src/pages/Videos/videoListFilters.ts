@@ -11,7 +11,9 @@ export interface VideoListFilters {
   commercialOnly: boolean
 }
 
-const FILTERABLE_STATUSES: ReadonlySet<string> = new Set(['published', 'archived'])
+const FILTERABLE_STATUSES: ReadonlySet<string> = new Set([
+  'topic', 'scripting', 'review', 'filming', 'editing', 'pending_publish', 'published', 'archived',
+])
 
 export function readVideoListFilters(searchParams: URLSearchParams): VideoListFilters {
   const statusParam = searchParams.get('status')

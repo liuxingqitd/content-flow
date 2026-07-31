@@ -7,6 +7,7 @@ const STATUS_STYLE: Record<VideoStatus, { bg: string; color: string; border: str
   review:    { bg: 'var(--status-review-bg)',    color: 'var(--status-review-text)',    border: 'var(--status-review-border)' },
   filming:   { bg: 'var(--status-filming-bg)',   color: 'var(--status-filming-text)',   border: 'var(--status-filming-border)' },
   editing:   { bg: 'var(--status-editing-bg)',   color: 'var(--status-editing-text)',   border: 'var(--status-editing-border)' },
+  pending_publish: { bg: 'var(--status-pending-publish-bg)', color: 'var(--status-pending-publish-text)', border: 'var(--status-pending-publish-border)' },
   published: { bg: 'var(--status-published-bg)', color: 'var(--status-published-text)', border: 'var(--status-published-border)' },
   archived:  { bg: 'var(--status-archived-bg)',  color: 'var(--status-archived-text)',  border: 'var(--status-archived-border)' },
 }

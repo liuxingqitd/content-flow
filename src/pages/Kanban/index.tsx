@@ -10,12 +10,11 @@ import { VideoCard } from './VideoCard'
 import { VideoSlideOver } from './VideoSlideOver'
 import { PublishChecklistDialog } from './PublishChecklistDialog'
 import { TransitionChecklistDialog } from './TransitionChecklistDialog'
-import { Modal } from '@/components/ui/Modal'
-import { Input, Textarea } from '@/components/ui/Input'
 import type { Video, VideoStatus, Tag } from '@/types'
 import { VIDEO_STATUS_LABELS, VIDEO_STATUS_ORDER } from '@/types'
+import { canMoveVideoToStatus } from '@/pages/Videos/videoWorkflow'
 
-const COLUMNS: VideoStatus[] = ['topic', 'scripting', 'review', 'filming', 'editing', 'published']
+const COLUMNS: VideoStatus[] = ['topic', 'scripting', 'review', 'filming', 'editing', 'pending_publish', 'published']
 
 const STATUS_DOT: Record<VideoStatus, string> = {
   topic:      'var(--status-topic, var(--status-topic-text))',
@@ -23,18 +22,18 @@ const STATUS_DOT: Record<VideoStatus, string> = {
   review:     'var(--status-review, var(--status-review-text))',
   filming:    'var(--status-filming, var(--status-filming-text))',
   editing:    'var(--status-editing, var(--status-editing-text))',
+  pending_publish: 'var(--status-pending-publish, var(--status-pending-publish-text))',
   published:  'var(--status-published, var(--status-published-text))',
   archived:   'var(--status-archived, var(--status-archived-text))',
 }
 
 function KanbanColumn({
-  status, videos, tags, onCardClick, onAddClick, isDragOver,
+  status, videos, tags, onCardClick, isDragOver,
 }: {
   status: VideoStatus
   videos: Video[]
   tags: Tag[]
   onCardClick: (v: Video) => void
-  onAddClick: (s: VideoStatus) => void
   isDragOver: boolean
 }) {
   const { setNodeRef } = useDroppable({ id: status })
@@ -63,32 +62,6 @@ function KanbanColumn({
             </span>
           )}
         </div>
-        <button
-          onClick={() => onAddClick(status)}
-          style={{
-            width: 24, height: 24, borderRadius: 5,
-            border: '1px solid var(--border-subtle)',
-            background: 'transparent', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--text-tertiary)', transition: 'all .12s',
-          }}
-          onMouseEnter={e => {
-            const el = e.currentTarget as HTMLElement
-            el.style.background = 'var(--bg-hover)'
-            el.style.color = 'var(--text-primary)'
-            el.style.borderColor = 'var(--border-default)'
-          }}
-          onMouseLeave={e => {
-            const el = e.currentTarget as HTMLElement
-            el.style.background = 'transparent'
-            el.style.color = 'var(--text-tertiary)'
-            el.style.borderColor = 'var(--border-subtle)'
-          }}
-        >
-          <svg width="10" height="10" fill="none" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/>
-          </svg>
-        </button>
       </div>
 
       {/* Drop zone */}
@@ -114,28 +87,9 @@ function KanbanColumn({
         </SortableContext>
 
         {videos.length === 0 && (
-          <button
-            onClick={() => onAddClick(status)}
-            style={{
-              width: '100%', padding: '16px 0',
-              borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-default)',
-              background: 'transparent', cursor: 'pointer',
-              fontSize: 12, color: 'var(--text-tertiary)',
-              transition: 'all .12s',
-            }}
-            onMouseEnter={e => {
-              const el = e.currentTarget as HTMLElement
-              el.style.borderColor = 'var(--border-default)'
-              el.style.color = 'var(--text-secondary)'
-            }}
-            onMouseLeave={e => {
-              const el = e.currentTarget as HTMLElement
-              el.style.borderColor = 'var(--border-subtle)'
-              el.style.color = 'var(--text-tertiary)'
-            }}
-          >
-            + 添加视频
-          </button>
+          <div style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-tertiary)' }}>
+            暂无视频
+          </div>
         )}
       </div>
     </div>
@@ -146,14 +100,11 @@ export function Kanban() {
   const videos = useAppStore(s => s.data?.videos ?? [])
   const tags = useAppStore(s => s.data?.tags ?? [])
   const moveVideo = useAppStore(s => s.moveVideo)
-  const addVideo = useAppStore(s => s.addVideo)
 
   const [activeVideo, setActiveVideo] = useState<Video | null>(null)
   const [overColumnId, setOverColumnId] = useState<VideoStatus | null>(null)
   const [slideOver, setSlideOver] = useState<Video | null>(null)
-  const [filterTagId, setFilterTagId] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
-  const [addModal, setAddModal] = useState<{ open: boolean; status: VideoStatus }>({ open: false, status: 'topic' })
   const [pendingMove, setPendingMove] = useState<{
     videoId: string; targetStatus: VideoStatus; videoTitle: string
   } | null>(null)
@@ -161,29 +112,23 @@ export function Kanban() {
   const [pendingScriptingReview, setPendingScriptingReview] = useState<{ videoId: string; videoTitle: string } | null>(null)
   const [pendingPublish, setPendingPublish] = useState<{ videoId: string; videoTitle: string } | null>(null)
   const [pendingFilmingEditing, setPendingFilmingEditing] = useState<{ videoId: string; videoTitle: string } | null>(null)
-  const [newForm, setNewForm] = useState({ title: '', description: '' })
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  const filtered = useMemo(() =>
-    filterTagId ? videos.filter(v => v.tagIds.includes(filterTagId)) : videos,
-    [videos, filterTagId]
-  )
-
   const columnVideos = useMemo(() => {
     const cols = {} as Record<VideoStatus, Video[]>
     for (const s of VIDEO_STATUS_ORDER) {
-      cols[s] = filtered
+      cols[s] = videos
         .filter(v => v.status === s)
         .sort((a, b) => s === 'published'
           ? b.createdAt.localeCompare(a.createdAt)
           : 0)
     }
     return cols
-  }, [filtered])
+  }, [videos])
 
   const onDragOver = ({ over }: DragOverEvent) => {
     if (!over) { setOverColumnId(null); return }
@@ -212,6 +157,7 @@ export function Kanban() {
     const videoId = active.id as string
     const video = videos.find(v => v.id === videoId)
     if (!video || video.status === targetStatus) return
+    if (!canMoveVideoToStatus(video.status, targetStatus)) return
 
     if (video.status === 'topic' && targetStatus === 'scripting') {
       setPendingTopicScripting({ videoId, videoTitle: video.title })
@@ -229,18 +175,11 @@ export function Kanban() {
       setPendingFilmingEditing({ videoId, videoTitle: video.title })
       return
     }
-    if (targetStatus === 'published') {
+    if (video.status === 'pending_publish' && targetStatus === 'published') {
       setPendingPublish({ videoId, videoTitle: video.title })
       return
     }
     moveVideo(videoId, targetStatus)
-  }
-
-  const handleAdd = () => {
-    if (!newForm.title.trim()) return
-    addVideo({ title: newForm.title.trim(), description: newForm.description.trim() || undefined, status: addModal.status, tagIds: [], platforms: [] })
-    setAddModal({ open: false, status: 'topic' })
-    setNewForm({ title: '', description: '' })
   }
 
   const displayCols = showArchived ? [...COLUMNS, 'archived' as VideoStatus] : COLUMNS
@@ -262,24 +201,6 @@ export function Kanban() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <FilterChip active={!filterTagId} onClick={() => setFilterTagId(null)}>全部</FilterChip>
-            {tags.map(tag => (
-              <button
-                key={tag.id}
-                onClick={() => setFilterTagId(filterTagId === tag.id ? null : tag.id)}
-                style={{
-                  padding: '4px 10px', borderRadius: 99, fontSize: 12, fontWeight: 500,
-                  border: 'none', cursor: 'pointer', transition: 'all .12s',
-                  background: filterTagId === tag.id ? tag.color : 'var(--bg-raised, var(--bg-elevated))',
-                  color: filterTagId === tag.id ? '#fff' : 'var(--text-secondary)',
-                }}
-              >
-                {tag.name}
-              </button>
-            ))}
-          </div>
-
           <button
             onClick={() => setShowArchived(!showArchived)}
             style={{
@@ -303,31 +224,6 @@ export function Kanban() {
             {showArchived ? '隐藏归档' : '显示归档'}
           </button>
 
-          <button
-            onClick={() => setAddModal({ open: true, status: 'topic' })}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 14px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
-              background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer',
-              transition: 'background .12s, box-shadow .12s',
-              boxShadow: '0 1px 3px rgba(124,88,237,.35)',
-            }}
-            onMouseEnter={e => {
-              const el = e.currentTarget as HTMLElement
-              el.style.background = 'var(--accent-hover)'
-              el.style.boxShadow = '0 2px 6px rgba(124,88,237,.45)'
-            }}
-            onMouseLeave={e => {
-              const el = e.currentTarget as HTMLElement
-              el.style.background = 'var(--accent)'
-              el.style.boxShadow = '0 1px 3px rgba(124,88,237,.35)'
-            }}
-          >
-            <svg width="12" height="12" fill="none" viewBox="0 0 12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/>
-            </svg>
-            新建视频
-          </button>
         </div>
       </div>
 
@@ -351,7 +247,6 @@ export function Kanban() {
               videos={columnVideos[status]}
               tags={tags}
               onCardClick={setSlideOver}
-              onAddClick={s => setAddModal({ open: true, status: s })}
               isDragOver={overColumnId === status}
             />
           ))}
@@ -466,92 +361,6 @@ export function Kanban() {
         onCancel={() => setPendingFilmingEditing(null)}
       />
 
-      <Modal
-        open={addModal.open}
-        onClose={() => setAddModal({ open: false, status: 'topic' })}
-        title={`新建视频 · ${VIDEO_STATUS_LABELS[addModal.status]}`}
-        size="md"
-        footer={
-          <>
-            <FooterBtn onClick={() => setAddModal({ open: false, status: 'topic' })}>取消</FooterBtn>
-            <PrimaryBtn onClick={handleAdd} disabled={!newForm.title.trim()}>创建</PrimaryBtn>
-          </>
-        }
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Input label="视频标题 *" placeholder="例：普通人如何在30岁前实现财务自由" value={newForm.title} onChange={e => setNewForm(f => ({ ...f, title: e.target.value }))} autoFocus />
-          <Textarea label="简介（可选）" placeholder="视频的核心内容或角度" rows={3} value={newForm.description} onChange={e => setNewForm(f => ({ ...f, description: e.target.value }))} />
-        </div>
-      </Modal>
     </div>
-  )
-}
-
-function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '4px 10px', borderRadius: 99, fontSize: 12, fontWeight: 500,
-        border: 'none', cursor: 'pointer', transition: 'all .12s',
-        background: active ? 'var(--accent)' : 'var(--bg-raised, var(--bg-elevated))',
-        color: active ? '#fff' : 'var(--text-secondary)',
-      }}
-    >
-      {children}
-    </button>
-  )
-}
-
-function FooterBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick} style={{
-      padding: '6px 14px', borderRadius: 'var(--radius-md)', fontSize: 13,
-      background: 'transparent', border: '1px solid var(--border-default)',
-      color: 'var(--text-secondary)', cursor: 'pointer',
-      transition: 'all .12s', fontFamily: 'inherit',
-    }}
-    onMouseEnter={e => {
-      const el = e.currentTarget as HTMLElement
-      el.style.background = 'var(--bg-hover)'
-      el.style.color = 'var(--text-primary)'
-    }}
-    onMouseLeave={e => {
-      const el = e.currentTarget as HTMLElement
-      el.style.background = 'transparent'
-      el.style.color = 'var(--text-secondary)'
-    }}
-    >
-      {children}
-    </button>
-  )
-}
-
-function PrimaryBtn({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        padding: '6px 14px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
-        background: disabled ? 'var(--bg-raised, var(--bg-elevated))' : 'var(--accent)',
-        color: disabled ? 'var(--text-tertiary)' : '#fff',
-        border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
-        transition: 'all .12s', fontFamily: 'inherit',
-        boxShadow: disabled ? 'none' : '0 1px 3px rgba(124,88,237,.35)',
-      }}
-      onMouseEnter={e => {
-        if (disabled) return
-        const el = e.currentTarget as HTMLElement
-        el.style.background = 'var(--accent-hover)'
-      }}
-      onMouseLeave={e => {
-        if (disabled) return
-        const el = e.currentTarget as HTMLElement
-        el.style.background = 'var(--accent)'
-      }}
-    >
-      {children}
-    </button>
   )
 }

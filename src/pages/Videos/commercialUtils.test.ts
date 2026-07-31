@@ -101,4 +101,21 @@ describe('commercial utils', () => {
     expect(getCommercialTotalAmount(video)).toBeUndefined()
     expect(getCommercialSettlementSummary(video)).toBe('unsettled')
   })
+
+  it('keeps settlement status independent from whether an amount was entered', () => {
+    expect(getCommercialSettlementSummary(baseVideo({
+      isCommercial: true,
+      commercialDealType: 'underwater',
+      commercialSettlementStatus: 'settled',
+    }))).toBe('settled')
+
+    expect(getCommercialSettlementSummary(baseVideo({
+      isCommercial: true,
+      commercialDealType: 'platform',
+      platformCommercialSettlements: [
+        { platform: 'douyin', settlementStatus: 'settled' },
+        { platform: 'xiaohongshu', amount: 0, settlementStatus: 'unsettled' },
+      ],
+    }))).toBe('partial')
+  })
 })

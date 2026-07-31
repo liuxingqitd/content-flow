@@ -18,7 +18,7 @@ describe('video list filters', () => {
   })
 
   it('ignores unsupported values and removes default values', () => {
-    expect(readVideoListFilters(new URLSearchParams('status=topic&platform=published'))).toEqual({
+    expect(readVideoListFilters(new URLSearchParams('status=unknown&platform=published'))).toEqual({
       search: '',
       status: 'all',
       platform: null,
@@ -27,6 +27,10 @@ describe('video list filters', () => {
     })
     expect(updateVideoListFilter(new URLSearchParams('q=test&tag=tag-1'), 'tag', 'all').toString()).toBe('q=test')
     expect(updateVideoListFilter(new URLSearchParams('q=test'), 'commercial', '1').toString()).toBe('q=test&commercial=1')
+  })
+
+  it('restores pending publish from the URL', () => {
+    expect(readVideoListFilters(new URLSearchParams('status=pending_publish')).status).toBe('pending_publish')
   })
 
   it('switches atomically between commercial and regular tag filters', () => {

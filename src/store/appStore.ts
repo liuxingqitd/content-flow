@@ -5,6 +5,7 @@ import { now } from '@/utils/date'
 import { videoId, topicId, scriptId, tagId, metricId, checklistItemId, videoRelationId, promotionRecordId } from '@/utils/id'
 import { readAppData, writeAppData } from '@/services/fileSystem'
 import { deleteTopicAndDetach } from './topicData'
+import { canMoveVideoToStatus, getVideoLibraryAddedAt } from '@/pages/Videos/videoWorkflow'
 
 interface AppState {
   data: AppData | null
@@ -354,10 +355,16 @@ export const useAppStore = create<AppState>()(
         if (!s.data) return
         const v = s.data.videos.find(v => v.id === id)
         if (!v) return
+        const previousStatus = v.status
+        if (!canMoveVideoToStatus(previousStatus, status)) return
+        const existingLibraryAddedAt = getVideoLibraryAddedAt(v)
         const updatedAt = now()
         v.status = status
         v.statusHistory.push({ status, changedAt: updatedAt })
         v.updatedAt = updatedAt
+        if (previousStatus === 'editing' && status === 'pending_publish' && !v.videoLibraryAddedAt) {
+          v.videoLibraryAddedAt = existingLibraryAddedAt ?? updatedAt
+        }
         if (status === 'scripting' && !v.scriptId) {
           const sid = scriptId()
           s.data.scripts.push({

@@ -12,6 +12,8 @@ import {
   buildPublishTrend,
   type PublishTrendGranularity,
 } from './dashboardTrends'
+import { buildCommercialOverview } from './dashboardCommercial'
+import { isVideoInLibrary } from '@/pages/Videos/videoWorkflow'
 
 const currencyFormatter = new Intl.NumberFormat('zh-CN', {
   style: 'currency',
@@ -73,14 +75,11 @@ export function Dashboard() {
     }, 0)
   }, 0)
 
-  const monthlyCommercialTrend = buildMonthlyCommercialTrend(videos, now)
-  const currentCommercialAmounts = monthlyCommercialTrend[monthlyCommercialTrend.length - 1]
-  const monthlySettledCommercialAmount = currentCommercialAmounts?.settledAmount ?? 0
-  const monthlyUnsettledCommercialAmount = currentCommercialAmounts?.unsettledAmount ?? 0
+  const libraryVideos = useMemo(() => videos.filter(isVideoInLibrary), [videos])
+  const monthlyCommercialTrend = buildMonthlyCommercialTrend(libraryVideos, now)
+  const commercialOverview = buildCommercialOverview(libraryVideos)
 
   const formattedMonthlyPromotionCost = currencyFormatter.format(monthlyPromotionCost)
-  const formattedMonthlySettledCommercialAmount = currencyFormatter.format(monthlySettledCommercialAmount)
-  const formattedMonthlyUnsettledCommercialAmount = currencyFormatter.format(monthlyUnsettledCommercialAmount)
 
   const pendingTopics = topics.filter(t => t.status === 'inspiration' || t.status === 'adopted')
 
@@ -109,6 +108,7 @@ export function Dashboard() {
     review: 'var(--status-review, var(--status-review-text))',
     filming: 'var(--status-filming, var(--status-filming-text))',
     editing: 'var(--status-editing, var(--status-editing-text))',
+    pending_publish: 'var(--status-pending-publish, var(--status-pending-publish-text))',
     published: 'var(--status-published, var(--status-published-text))',
   }
 
@@ -156,10 +156,6 @@ export function Dashboard() {
             { label: '已发布', value: statusCounts.published, sub: '条视频', accent: true, path: '/videos' },
             { label: '本月新建', value: thisMonth.length, sub: '条视频', accent: false, path: '/kanban' },
             ...(hidePromotionCost ? [] : [{ label: '本月投放成本' as const, value: formattedMonthlyPromotionCost, sub: '平台投放', accent: false, path: '/videos' }]),
-            ...(hideCommercialAmount ? [] : [
-              { label: '本月已结算商单' as const, value: formattedMonthlySettledCommercialAmount, sub: '已结算收入', accent: false, path: '/videos' },
-              { label: '本月未结算商单' as const, value: formattedMonthlyUnsettledCommercialAmount, sub: '待结算收入', accent: false, path: '/videos' },
-            ]),
             { label: '待处理选题', value: pendingTopics.length, sub: '个想法', accent: false, path: '/topics' },
             { label: '逐字稿', value: scripts.length, sub: '篇稿件', accent: false, path: '/scripts' },
           ].map(stat => (
@@ -322,8 +318,40 @@ export function Dashboard() {
 
         {!hideCommercialAmount && (
           <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 16 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>月度商单金额趋势</p>
-            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>最近 12 个月按视频首次发布时间归属，并按结算状态分别统计</p>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-primary)', marginBottom: 2 }}>商单信息</p>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>按结算状态与结算方式分别统计</p>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <p style={{ fontSize: 18, fontWeight: 650, color: 'var(--text-primary)', lineHeight: 1.15 }}>{commercialOverview.commercialCount} 条</p>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 3 }}>{currencyFormatter.format(commercialOverview.totalAmount)}</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12, marginBottom: 18 }}>
+              <CommercialBreakdownGroup
+                title="结算状态"
+                items={[
+                  { label: '已结算', count: commercialOverview.settlementCounts.settled, color: 'var(--success)' },
+                  { label: '部分结算', count: commercialOverview.settlementCounts.partial, color: 'var(--warning)' },
+                  { label: '未结算', count: commercialOverview.settlementCounts.unsettled, color: 'var(--text-tertiary)' },
+                ]}
+              />
+              <CommercialBreakdownGroup
+                title="结算方式"
+                items={[
+                  { label: '平台结算', count: commercialOverview.paymentMethodCounts.platform, color: 'var(--accent)' },
+                  { label: '个人转账', count: commercialOverview.paymentMethodCounts.personal_transfer, color: 'var(--info)' },
+                  { label: '对公付款', count: commercialOverview.paymentMethodCounts.corporate_payment, color: 'var(--success)' },
+                ]}
+              />
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 14 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>月度金额趋势</p>
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>最近 12 个月按视频首次发布时间归属，并按结算状态分别统计</p>
+            </div>
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={monthlyCommercialTrend} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
                 <defs>
@@ -354,5 +382,29 @@ export function Dashboard() {
         )}
       </div>
     </PageContainer>
+  )
+}
+
+function CommercialBreakdownGroup({
+  title,
+  items,
+}: {
+  title: string
+  items: Array<{ label: string; count: number; color: string }>
+}) {
+  return (
+    <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-raised)', padding: 12 }}>
+      <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 9 }}>{title}</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+        {items.map(item => (
+          <div key={item.label} style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 10, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</p>
+            <p style={{ fontSize: 19, fontWeight: 650, color: item.color, lineHeight: 1.2, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>
+              {item.count}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }

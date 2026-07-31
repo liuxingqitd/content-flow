@@ -182,7 +182,7 @@ const DEFAULT_TRANSITION_CHECKLISTS: Record<TransitionKey, ChecklistItem[]> = {
 
 export function defaultAppData(): AppData {
   return {
-    version: '1.0',
+    version: '1.1',
     tags: TAGS,
     checklistItems: CHECKLIST_ITEMS,
     transitionChecklists: DEFAULT_TRANSITION_CHECKLISTS,
