@@ -323,9 +323,9 @@ export function Dashboard() {
                 <p style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-primary)', marginBottom: 2 }}>商单信息</p>
                 <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>按结算状态与结算方式分别统计</p>
               </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <p style={{ fontSize: 18, fontWeight: 650, color: 'var(--text-primary)', lineHeight: 1.15 }}>{commercialOverview.commercialCount} 条</p>
-                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 3 }}>{currencyFormatter.format(commercialOverview.totalAmount)}</p>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
+                <span style={{ fontSize: 20, fontWeight: 650, color: 'var(--text-primary)', lineHeight: 1.15 }}>{currencyFormatter.format(commercialOverview.totalAmount)}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{commercialOverview.commercialCount} 条</span>
               </div>
             </div>
 
@@ -333,17 +333,17 @@ export function Dashboard() {
               <CommercialBreakdownGroup
                 title="结算状态"
                 items={[
-                  { label: '已结算', count: commercialOverview.settlementCounts.settled, color: 'var(--success)' },
-                  { label: '部分结算', count: commercialOverview.settlementCounts.partial, color: 'var(--warning)' },
-                  { label: '未结算', count: commercialOverview.settlementCounts.unsettled, color: 'var(--text-tertiary)' },
+                  { label: '已结算', amount: commercialOverview.settlementAmounts.settled, count: commercialOverview.settlementCounts.settled, color: 'var(--success)' },
+                  { label: '部分结算', amount: commercialOverview.settlementAmounts.partial, count: commercialOverview.settlementCounts.partial, color: 'var(--warning)' },
+                  { label: '未结算', amount: commercialOverview.settlementAmounts.unsettled, count: commercialOverview.settlementCounts.unsettled, color: 'var(--text-tertiary)' },
                 ]}
               />
               <CommercialBreakdownGroup
                 title="结算方式"
                 items={[
-                  { label: '平台结算', count: commercialOverview.paymentMethodCounts.platform, color: 'var(--accent)' },
-                  { label: '个人转账', count: commercialOverview.paymentMethodCounts.personal_transfer, color: 'var(--info)' },
-                  { label: '对公付款', count: commercialOverview.paymentMethodCounts.corporate_payment, color: 'var(--success)' },
+                  { label: '平台结算', amount: commercialOverview.paymentMethodAmounts.platform, count: commercialOverview.paymentMethodCounts.platform, color: 'var(--accent)' },
+                  { label: '个人转账', amount: commercialOverview.paymentMethodAmounts.personal_transfer, count: commercialOverview.paymentMethodCounts.personal_transfer, color: 'var(--info)' },
+                  { label: '对公付款', amount: commercialOverview.paymentMethodAmounts.corporate_payment, count: commercialOverview.paymentMethodCounts.corporate_payment, color: 'var(--success)' },
                 ]}
               />
             </div>
@@ -390,7 +390,7 @@ function CommercialBreakdownGroup({
   items,
 }: {
   title: string
-  items: Array<{ label: string; count: number; color: string }>
+  items: Array<{ label: string; amount: number; count: number; color: string }>
 }) {
   return (
     <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-raised)', padding: 12 }}>
@@ -399,8 +399,9 @@ function CommercialBreakdownGroup({
         {items.map(item => (
           <div key={item.label} style={{ minWidth: 0 }}>
             <p style={{ fontSize: 10, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</p>
-            <p style={{ fontSize: 19, fontWeight: 650, color: item.color, lineHeight: 1.2, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>
-              {item.count}
+            <p style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 3, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: 17, fontWeight: 650, color: item.color, lineHeight: 1.2 }}>{currencyFormatter.format(item.amount)}</span>
+              <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{item.count} 条</span>
             </p>
           </div>
         ))}

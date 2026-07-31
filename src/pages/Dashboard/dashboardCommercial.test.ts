@@ -44,7 +44,9 @@ describe('buildCommercialOverview', () => {
       commercialCount: 3,
       totalAmount: 6600,
       settlementCounts: { settled: 1, partial: 1, unsettled: 1 },
+      settlementAmounts: { settled: 3600, partial: 3000, unsettled: 0 },
       paymentMethodCounts: { platform: 1, personal_transfer: 1, corporate_payment: 1 },
+      paymentMethodAmounts: { platform: 3000, personal_transfer: 3600, corporate_payment: 0 },
     })
   })
 
@@ -69,6 +71,40 @@ describe('buildCommercialOverview', () => {
       personal_transfer: 0,
       corporate_payment: 1,
     })
+    expect(overview.paymentMethodAmounts).toEqual({
+      platform: 5000,
+      personal_transfer: 0,
+      corporate_payment: 2000,
+    })
+    expect(overview.settlementAmounts).toEqual({
+      settled: 2000,
+      partial: 0,
+      unsettled: 5000,
+    })
     expect(overview.totalAmount).toBe(7000)
+  })
+
+  it('keeps both dimension totals aligned with the commercial total', () => {
+    const overview = buildCommercialOverview([
+      video('platform-partial', {
+        isCommercial: true,
+        commercialDealType: 'platform',
+        platformCommercialSettlements: [
+          { platform: 'douyin', amount: 800, settlementStatus: 'settled' },
+          { platform: 'xiaohongshu', amount: 1200, settlementStatus: 'unsettled' },
+        ],
+      }),
+      video('personal-unsettled', {
+        isCommercial: true,
+        commercialAmount: 3000,
+        commercialSettlementStatus: 'unsettled',
+        underwaterPaymentMethod: 'personal_transfer',
+      }),
+    ])
+
+    expect(Object.values(overview.settlementAmounts).reduce((sum, amount) => sum + amount, 0)).toBe(overview.totalAmount)
+    expect(Object.values(overview.paymentMethodAmounts).reduce((sum, amount) => sum + amount, 0)).toBe(overview.totalAmount)
+    expect(overview.settlementAmounts.partial).toBe(2000)
+    expect(overview.settlementCounts.partial).toBe(1)
   })
 })
