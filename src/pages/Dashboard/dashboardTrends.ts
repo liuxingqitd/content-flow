@@ -1,7 +1,12 @@
 import type { Video } from '@/types'
 import { getCommercialAmountEntries } from '@/pages/Videos/commercialUtils'
-
-export type PublishTrendGranularity = 'week' | 'month'
+import {
+  getDashboardPeriodRange,
+  getFirstPublishedAt,
+  isDateInDashboardPeriod,
+  parseDashboardDate,
+  type DashboardPeriod,
+} from './dashboardPeriod'
 
 export interface PublishTrendPoint {
   key: string
@@ -23,24 +28,11 @@ export interface CommercialTrendPoint {
 const startOfLocalDay = (value: Date) =>
   new Date(value.getFullYear(), value.getMonth(), value.getDate())
 
-const startOfLocalWeek = (value: Date) => {
-  const result = startOfLocalDay(value)
-  const daysFromMonday = (result.getDay() + 6) % 7
-  result.setDate(result.getDate() - daysFromMonday)
-  return result
-}
-
-const startOfLocalMonth = (value: Date) =>
-  new Date(value.getFullYear(), value.getMonth(), 1)
-
 const addDays = (value: Date, amount: number) => {
   const result = new Date(value)
   result.setDate(result.getDate() + amount)
   return result
 }
-
-const addMonths = (value: Date, amount: number) =>
-  new Date(value.getFullYear(), value.getMonth() + amount, 1)
 
 const endOfLocalMonth = (value: Date) =>
   new Date(value.getFullYear(), value.getMonth() + 1, 0)
@@ -54,109 +46,95 @@ const localDateKey = (value: Date) => [
 const localMonthKey = (value: Date) =>
   `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}`
 
-const weekLabel = (value: Date) =>
+const dayLabel = (value: Date) =>
   `${String(value.getMonth() + 1).padStart(2, '0')}/${String(value.getDate()).padStart(2, '0')}`
 
 const monthLabel = (value: Date) =>
   `${String(value.getFullYear()).slice(-2)}/${String(value.getMonth() + 1).padStart(2, '0')}`
 
-const parseValidDate = (value?: string) => {
-  if (!value) return undefined
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? undefined : date
-}
-
-const getFirstPublishedAt = (video: Video) => video.platforms
-  .map(platform => parseValidDate(platform.publishedAt))
-  .filter((date): date is Date => Boolean(date))
-  .sort((a, b) => a.getTime() - b.getTime())[0]
-
-const buildPublishBuckets = (
-  granularity: PublishTrendGranularity,
+const buildDashboardPeriodBuckets = (
+  period: DashboardPeriod,
   referenceDate: Date,
-  bucketCount: number,
 ): PublishTrendPoint[] => {
-  if (bucketCount <= 0) return []
+  const { start, endExclusive } = getDashboardPeriodRange(period, referenceDate)
 
-  if (granularity === 'week') {
-    const currentWeek = startOfLocalWeek(referenceDate)
-    const firstWeek = addDays(currentWeek, -(bucketCount - 1) * 7)
-    return Array.from({ length: bucketCount }, (_, index) => {
-      const start = addDays(firstWeek, index * 7)
-      const end = addDays(start, 6)
+  if (period === 'year') {
+    return Array.from({ length: referenceDate.getMonth() + 1 }, (_, index) => {
+      const monthStart = new Date(start.getFullYear(), index, 1)
       return {
-        key: localDateKey(start),
-        label: weekLabel(start),
-        rangeStart: localDateKey(start),
-        rangeEnd: localDateKey(end),
+        key: localMonthKey(monthStart),
+        label: monthLabel(monthStart),
+        rangeStart: localDateKey(monthStart),
+        rangeEnd: localDateKey(endOfLocalMonth(monthStart)),
         count: 0,
       }
     })
   }
 
-  const currentMonth = startOfLocalMonth(referenceDate)
-  const firstMonth = addMonths(currentMonth, -(bucketCount - 1))
-  return Array.from({ length: bucketCount }, (_, index) => {
-    const start = addMonths(firstMonth, index)
-    return {
-      key: localMonthKey(start),
-      label: monthLabel(start),
-      rangeStart: localDateKey(start),
-      rangeEnd: localDateKey(endOfLocalMonth(start)),
+  const points: PublishTrendPoint[] = []
+  const referenceDay = startOfLocalDay(referenceDate)
+  for (
+    let day = new Date(start);
+    day.getTime() < endExclusive.getTime() && day.getTime() <= referenceDay.getTime();
+    day = addDays(day, 1)
+  ) {
+    const key = localDateKey(day)
+    points.push({
+      key,
+      label: dayLabel(day),
+      rangeStart: key,
+      rangeEnd: key,
       count: 0,
-    }
-  })
+    })
+  }
+  return points
 }
 
-export function buildPublishTrend(
+const dashboardPeriodKey = (date: Date, period: DashboardPeriod) =>
+  period === 'year' ? localMonthKey(date) : localDateKey(date)
+
+export function buildDashboardPublishTrend(
   videos: Video[],
-  granularity: PublishTrendGranularity,
+  period: DashboardPeriod,
   referenceDate = new Date(),
-  bucketCount = 12,
 ): PublishTrendPoint[] {
-  const points = buildPublishBuckets(granularity, referenceDate, bucketCount)
+  const points = buildDashboardPeriodBuckets(period, referenceDate)
   const counts = new Map(points.map(point => [point.key, point]))
 
   videos.forEach(video => {
-    const firstPublishedAt = getFirstPublishedAt(video)
-    if (!firstPublishedAt || firstPublishedAt.getTime() > referenceDate.getTime()) return
-
-    const key = granularity === 'week'
-      ? localDateKey(startOfLocalWeek(firstPublishedAt))
-      : localMonthKey(firstPublishedAt)
-    const point = counts.get(key)
+    const firstPublishedAt = getFirstPublishedAt(video.platforms)
+    if (!firstPublishedAt || !isDateInDashboardPeriod(firstPublishedAt, period, referenceDate)) return
+    const point = counts.get(dashboardPeriodKey(firstPublishedAt, period))
     if (point) point.count += 1
   })
 
   return points
 }
 
-export function buildMonthlyCommercialTrend(
+export function buildDashboardCommercialTrend(
   videos: Video[],
+  period: DashboardPeriod,
   referenceDate = new Date(),
-  monthCount = 12,
 ): CommercialTrendPoint[] {
-  const points = buildPublishBuckets('month', referenceDate, monthCount)
-    .map(point => ({
-      key: point.key,
-      label: point.label,
-      rangeStart: point.rangeStart,
-      rangeEnd: point.rangeEnd,
-      settledAmount: 0,
-      unsettledAmount: 0,
-    }))
+  const points = buildDashboardPeriodBuckets(period, referenceDate).map(point => ({
+    key: point.key,
+    label: point.label,
+    rangeStart: point.rangeStart,
+    rangeEnd: point.rangeEnd,
+    settledAmount: 0,
+    unsettledAmount: 0,
+  }))
   const amounts = new Map(points.map(point => [point.key, point]))
 
   videos.forEach(video => {
     const entries = getCommercialAmountEntries(video)
     if (entries.length === 0) return
 
-    const date = getFirstPublishedAt(video) ?? parseValidDate(video.createdAt)
-    if (!date || date.getTime() > referenceDate.getTime()) return
+    const date = getFirstPublishedAt(video.platforms) ?? parseDashboardDate(video.createdAt)
+    if (!date || !isDateInDashboardPeriod(date, period, referenceDate)) return
 
-    const point = amounts.get(localMonthKey(date))
+    const point = amounts.get(dashboardPeriodKey(date, period))
     if (!point) return
-
     entries.forEach(entry => {
       if (entry.settlementStatus === 'settled') point.settledAmount += entry.amount
       else point.unsettledAmount += entry.amount

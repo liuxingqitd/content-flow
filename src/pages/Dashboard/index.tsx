@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ResponsiveContainer, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts'
 import { useAppStore } from '@/store/appStore'
@@ -8,12 +8,18 @@ import type { VideoStatus } from '@/types'
 import { VIDEO_STATUS_LABELS, VIDEO_STATUS_ORDER } from '@/types'
 import { fromNow, formatDate } from '@/utils/date'
 import {
-  buildMonthlyCommercialTrend,
-  buildPublishTrend,
-  type PublishTrendGranularity,
+  buildDashboardCommercialTrend,
+  buildDashboardPublishTrend,
 } from './dashboardTrends'
 import { buildCommercialOverview } from './dashboardCommercial'
 import { isVideoInLibrary } from '@/pages/Videos/videoWorkflow'
+import {
+  DASHBOARD_PERIOD_LABELS,
+  getFirstPublishedAt,
+  isDateInDashboardPeriod,
+  parseDashboardDate,
+  type DashboardPeriod,
+} from './dashboardPeriod'
 
 const currencyFormatter = new Intl.NumberFormat('zh-CN', {
   style: 'currency',
@@ -26,15 +32,24 @@ const compactCurrencyFormatter = new Intl.NumberFormat('zh-CN', {
   maximumFractionDigits: 1,
 })
 
+const formatTrendRange = (rangeStart: string, rangeEnd: string) =>
+  rangeStart === rangeEnd ? rangeStart : `${rangeStart} 至 ${rangeEnd}`
+
 export function Dashboard() {
   const navigate = useNavigate()
-  const [publishTrendGranularity, setPublishTrendGranularity] = useState<PublishTrendGranularity>('week')
+  const [dashboardPeriod, setDashboardPeriod] = useState<DashboardPeriod>('month')
   const videos = useAppStore(s => s.data?.videos ?? [])
   const topics = useAppStore(s => s.data?.topics ?? [])
   const scripts = useAppStore(s => s.data?.scripts ?? [])
   const tags = useAppStore(s => s.data?.tags ?? [])
   const hidePromotionCost = useAppStore(s => s.data?.settings.hidePromotionCost ?? false)
   const hideCommercialAmount = useAppStore(s => s.data?.settings.hideCommercialAmount ?? false)
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 60_000)
+    return () => window.clearInterval(interval)
+  }, [])
 
   const tooltipStyle = {
     background: 'var(--bg-overlay)',
@@ -44,48 +59,68 @@ export function Dashboard() {
     fontSize: '12px',
   }
 
+  const periodLabel = DASHBOARD_PERIOD_LABELS[dashboardPeriod]
+
+  const periodVideos = useMemo(
+    () => videos.filter(video => isDateInDashboardPeriod(video.createdAt, dashboardPeriod, now)),
+    [videos, dashboardPeriod, now],
+  )
+
   const inProgress = useMemo(() =>
-    videos.filter(v => v.status === 'filming' || v.status === 'editing'),
-    [videos]
+    periodVideos.filter(v => v.status === 'filming' || v.status === 'editing'),
+    [periodVideos]
   )
 
   const statusCounts = useMemo(() => {
     const counts: Record<VideoStatus, number> = {} as Record<VideoStatus, number>
     for (const s of VIDEO_STATUS_ORDER) {
-      counts[s] = videos.filter(v => v.status === s).length
+      counts[s] = periodVideos.filter(v => v.status === s).length
     }
     return counts
-  }, [videos])
+  }, [periodVideos])
 
-  const now = new Date()
-  const currentMonth = now.getMonth()
-  const currentYear = now.getFullYear()
-  const thisMonth = videos.filter(v => {
-    const d = new Date(v.createdAt)
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear
-  })
+  const periodPublishedVideos = useMemo(() => videos.filter(video => {
+    const firstPublishedAt = getFirstPublishedAt(video.platforms)
+    return firstPublishedAt
+      ? isDateInDashboardPeriod(firstPublishedAt, dashboardPeriod, now)
+      : false
+  }), [videos, dashboardPeriod, now])
 
-  const monthlyPromotionCost = videos.reduce((total, video) => {
+  const periodPromotionCost = videos.reduce((total, video) => {
     return total + (video.promotionRecords ?? []).reduce((sum, record) => {
-      const date = new Date(record.spentAt)
-      if (date.getMonth() !== currentMonth || date.getFullYear() !== currentYear) {
-        return sum
-      }
-      return sum + record.amount
+      return isDateInDashboardPeriod(record.spentAt, dashboardPeriod, now)
+        ? sum + record.amount
+        : sum
     }, 0)
   }, 0)
 
   const libraryVideos = useMemo(() => videos.filter(isVideoInLibrary), [videos])
-  const monthlyCommercialTrend = buildMonthlyCommercialTrend(libraryVideos, now)
-  const commercialOverview = buildCommercialOverview(libraryVideos)
+  const periodCommercialVideos = useMemo(() => libraryVideos.filter(video => {
+    const commercialDate = getFirstPublishedAt(video.platforms) ?? parseDashboardDate(video.createdAt)
+    return isDateInDashboardPeriod(commercialDate, dashboardPeriod, now)
+  }), [libraryVideos, dashboardPeriod, now])
+  const commercialTrend = useMemo(
+    () => buildDashboardCommercialTrend(libraryVideos, dashboardPeriod, now),
+    [libraryVideos, dashboardPeriod, now],
+  )
+  const commercialOverview = useMemo(
+    () => buildCommercialOverview(periodCommercialVideos),
+    [periodCommercialVideos],
+  )
 
-  const formattedMonthlyPromotionCost = currencyFormatter.format(monthlyPromotionCost)
+  const formattedPromotionCost = currencyFormatter.format(periodPromotionCost)
 
-  const pendingTopics = topics.filter(t => t.status === 'inspiration' || t.status === 'adopted')
+  const pendingTopics = topics.filter(topic =>
+    (topic.status === 'inspiration' || topic.status === 'adopted')
+    && isDateInDashboardPeriod(topic.createdAt, dashboardPeriod, now)
+  )
+  const periodScripts = scripts.filter(script =>
+    isDateInDashboardPeriod(script.createdAt, dashboardPeriod, now)
+  )
 
   const tagDistribution = useMemo(() => {
     const countMap: Record<string, { name: string; color: string; count: number }> = {}
-    videos.forEach(v => {
+    periodVideos.forEach(v => {
       v.tagIds.forEach(tid => {
         const tag = tags.find(t => t.id === tid)
         if (tag) {
@@ -95,11 +130,11 @@ export function Dashboard() {
       })
     })
     return Object.values(countMap).sort((a, b) => b.count - a.count)
-  }, [videos, tags])
+  }, [periodVideos, tags])
 
   const publishTrend = useMemo(
-    () => buildPublishTrend(videos, publishTrendGranularity),
-    [videos, publishTrendGranularity],
+    () => buildDashboardPublishTrend(videos, dashboardPeriod, now),
+    [videos, dashboardPeriod, now],
   )
 
   const pipelineColors: Record<string, string> = {
@@ -113,7 +148,11 @@ export function Dashboard() {
   }
 
   return (
-    <PageContainer title="概览" subtitle={`${formatDate(new Date().toISOString())} · ${videos.length} 条视频`}>
+    <PageContainer
+      title="概览"
+      subtitle={`${formatDate(now.toISOString())} · ${periodLabel}新建 ${periodVideos.length} 条视频`}
+      actions={<PeriodSelector value={dashboardPeriod} onChange={setDashboardPeriod} />}
+    >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* In-progress banner */}
@@ -125,7 +164,7 @@ export function Dashboard() {
             padding: 12,
           }}>
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginBottom: 8, letterSpacing: '0.02em' }}>
-              进行中 · {inProgress.length} 条
+              {periodLabel}新建且进行中 · {inProgress.length} 条
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {inProgress.map(v => (
@@ -153,11 +192,11 @@ export function Dashboard() {
         {/* Stats grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 8 }}>
           {[
-            { label: '已发布', value: statusCounts.published, sub: '条视频', accent: true, path: '/videos' },
-            { label: '本月新建', value: thisMonth.length, sub: '条视频', accent: false, path: '/kanban' },
-            ...(hidePromotionCost ? [] : [{ label: '本月投放成本' as const, value: formattedMonthlyPromotionCost, sub: '平台投放', accent: false, path: '/videos' }]),
-            { label: '待处理选题', value: pendingTopics.length, sub: '个想法', accent: false, path: '/topics' },
-            { label: '逐字稿', value: scripts.length, sub: '篇稿件', accent: false, path: '/scripts' },
+            { label: `${periodLabel}发布`, value: periodPublishedVideos.length, sub: '条视频', accent: true, path: '/videos' },
+            { label: `${periodLabel}新建`, value: periodVideos.length, sub: '条视频', accent: false, path: '/kanban' },
+            ...(hidePromotionCost ? [] : [{ label: `${periodLabel}投放成本`, value: formattedPromotionCost, sub: '平台投放', accent: false, path: '/videos' }]),
+            { label: `${periodLabel}待处理选题`, value: pendingTopics.length, sub: '个想法', accent: false, path: '/topics' },
+            { label: `${periodLabel}逐字稿`, value: periodScripts.length, sub: '篇稿件', accent: false, path: '/scripts' },
           ].map(stat => (
             <button
               key={stat.label}
@@ -191,7 +230,7 @@ export function Dashboard() {
 
         {/* Pipeline */}
         <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 14 }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10 }}>内容管道</p>
+          <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10 }}>{periodLabel}新建内容的当前管道</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
             {VIDEO_STATUS_ORDER.filter(s => s !== 'archived').map((s, i, arr) => {
               const count = statusCounts[s]
@@ -235,7 +274,7 @@ export function Dashboard() {
           {/* Tag distribution chart */}
           <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 16 }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>内容标签构成</p>
-            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>各标签覆盖的视频数量，帮助判断内容方向</p>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>{periodLabel}新建视频的标签覆盖数量</p>
             {tagDistribution.length === 0 ? (
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 0' }}>暂无标签数据</p>
             ) : (
@@ -257,42 +296,11 @@ export function Dashboard() {
 
           {/* Publishing trend */}
           <div style={{ borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', padding: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-              <div>
-                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>发布视频趋势</p>
-                <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                  最近 12 {publishTrendGranularity === 'week' ? '周' : '个月'}首次发布的视频数量
-                </p>
-              </div>
-              <div style={{ display: 'flex', padding: 2, borderRadius: 'var(--radius-md)', background: 'var(--bg-raised)', border: '1px solid var(--border-subtle)', flexShrink: 0 }}>
-                {([
-                  ['week', '按周'],
-                  ['month', '按月'],
-                ] as const).map(([granularity, label]) => {
-                  const active = publishTrendGranularity === granularity
-                  return (
-                    <button
-                      key={granularity}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setPublishTrendGranularity(granularity)}
-                      style={{
-                        border: 'none',
-                        borderRadius: 'calc(var(--radius-md) - 2px)',
-                        background: active ? 'var(--bg-surface)' : 'transparent',
-                        color: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                        boxShadow: active ? 'var(--shadow-xs)' : 'none',
-                        cursor: 'pointer',
-                        fontSize: 11,
-                        fontWeight: active ? 600 : 500,
-                        padding: '4px 9px',
-                      }}
-                    >
-                      {label}
-                    </button>
-                  )
-                })}
-              </div>
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>发布视频趋势</p>
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                {dashboardPeriod === 'year' ? '按月' : '按日'}展示{periodLabel}首次发布的视频数量
+              </p>
             </div>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={publishTrend} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
@@ -307,7 +315,9 @@ export function Dashboard() {
                 <YAxis tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }} allowDecimals={false} tickLine={false} axisLine={false} />
                 <Tooltip
                   contentStyle={tooltipStyle}
-                  labelFormatter={(_, payload) => payload[0]?.payload ? `${payload[0].payload.rangeStart} 至 ${payload[0].payload.rangeEnd}` : ''}
+                  labelFormatter={(_, payload) => payload[0]?.payload
+                    ? formatTrendRange(payload[0].payload.rangeStart, payload[0].payload.rangeEnd)
+                    : ''}
                   formatter={(v: unknown) => [`${v} 条`, '发布视频']}
                 />
                 <Area type="monotone" dataKey="count" name="发布视频" stroke="var(--accent)" strokeWidth={2} fill="url(#publishTrendFill)" activeDot={{ r: 4 }} />
@@ -321,7 +331,7 @@ export function Dashboard() {
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
               <div>
                 <p style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-primary)', marginBottom: 2 }}>商单信息</p>
-                <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>按结算状态与结算方式分别统计</p>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{periodLabel}商单，按结算状态与结算方式分别统计</p>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
                 <span style={{ fontSize: 20, fontWeight: 650, color: 'var(--text-primary)', lineHeight: 1.15 }}>{currencyFormatter.format(commercialOverview.totalAmount)}</span>
@@ -349,11 +359,13 @@ export function Dashboard() {
             </div>
 
             <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 14 }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>月度金额趋势</p>
-              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>最近 12 个月按视频首次发布时间归属，并按结算状态分别统计</p>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 2 }}>商单金额趋势</p>
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>
+                {dashboardPeriod === 'year' ? '按月' : '按日'}展示{periodLabel}商单，按视频首次发布时间归属
+              </p>
             </div>
             <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={monthlyCommercialTrend} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+              <AreaChart data={commercialTrend} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
                 <defs>
                   <linearGradient id="commercialTrendFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--success)" stopOpacity={0.3} />
@@ -371,7 +383,9 @@ export function Dashboard() {
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}
-                  labelFormatter={(_, payload) => payload[0]?.payload ? payload[0].payload.key : ''}
+                  labelFormatter={(_, payload) => payload[0]?.payload
+                    ? formatTrendRange(payload[0].payload.rangeStart, payload[0].payload.rangeEnd)
+                    : ''}
                   formatter={(value: unknown, name: unknown) => [currencyFormatter.format(Number(value)), String(name)]}
                 />
                 <Area type="monotone" dataKey="settledAmount" name="已结算" stroke="var(--success)" strokeWidth={2} fill="url(#commercialTrendFill)" activeDot={{ r: 4 }} />
@@ -382,6 +396,57 @@ export function Dashboard() {
         )}
       </div>
     </PageContainer>
+  )
+}
+
+function PeriodSelector({
+  value,
+  onChange,
+}: {
+  value: DashboardPeriod
+  onChange: (period: DashboardPeriod) => void
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="概览统计周期"
+      style={{
+        display: 'flex',
+        padding: 2,
+        borderRadius: 'var(--radius-md)',
+        background: 'var(--bg-raised)',
+        border: '1px solid var(--border-subtle)',
+      }}
+    >
+      {([
+        ['week', '周'],
+        ['month', '月'],
+        ['year', '年'],
+      ] as const).map(([period, label]) => {
+        const active = value === period
+        return (
+          <button
+            key={period}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(period)}
+            style={{
+              border: 'none',
+              borderRadius: 'calc(var(--radius-md) - 2px)',
+              background: active ? 'var(--bg-surface)' : 'transparent',
+              color: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
+              boxShadow: active ? 'var(--shadow-xs)' : 'none',
+              cursor: 'pointer',
+              fontSize: 11,
+              fontWeight: active ? 600 : 500,
+              padding: '4px 12px',
+            }}
+          >
+            {label}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 

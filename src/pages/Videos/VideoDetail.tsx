@@ -66,62 +66,48 @@ export function VideoDetail() {
   }
 
   const [coverPortraitUrl, setCoverPortraitUrl] = useState<string | null>(null)
-  const [coverLandscapeUrl, setCoverLandscapeUrl] = useState<string | null>(null)
   const portraitInputRef = useRef<HTMLInputElement>(null)
-  const landscapeInputRef = useRef<HTMLInputElement>(null)
 
   const videoId = video?.id
   const coverPortraitExt = video?.coverPortrait
-  const coverLandscapeExt = video?.coverLandscape
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([
-      coverPortraitExt && videoId ? readCoverImage(videoId, 'portrait', coverPortraitExt) : Promise.resolve(null),
-      coverLandscapeExt && videoId ? readCoverImage(videoId, 'landscape', coverLandscapeExt) : Promise.resolve(null),
-    ]).then(([p, l]) => {
-      if (cancelled) { if (p) URL.revokeObjectURL(p); if (l) URL.revokeObjectURL(l); return }
-      setCoverPortraitUrl(prev => { if (prev) URL.revokeObjectURL(prev); return p })
-      setCoverLandscapeUrl(prev => { if (prev) URL.revokeObjectURL(prev); return l })
+    const coverPromise = coverPortraitExt && videoId
+      ? readCoverImage(videoId, 'portrait', coverPortraitExt)
+      : Promise.resolve(null)
+    coverPromise.then(url => {
+      if (cancelled) { if (url) URL.revokeObjectURL(url); return }
+      setCoverPortraitUrl(prev => { if (prev) URL.revokeObjectURL(prev); return url })
     })
     return () => {
       cancelled = true
       setCoverPortraitUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
-      setCoverLandscapeUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
     }
-  }, [videoId, coverPortraitExt, coverLandscapeExt])
+  }, [videoId, coverPortraitExt])
 
-  const handleCoverUpload = async (orientation: 'portrait' | 'landscape', file: File) => {
+  const handleCoverUpload = async (file: File) => {
     if (!video) return
-    const ext = await writeCoverImage(video.id, orientation, file)
-    if (orientation === 'portrait') invalidateCoverThumbnailCache(video.id)
-    updateVideoCover(video.id, orientation, ext)
+    const ext = await writeCoverImage(video.id, 'portrait', file)
+    invalidateCoverThumbnailCache(video.id)
+    updateVideoCover(video.id, 'portrait', ext)
     const url = URL.createObjectURL(file)
-    if (orientation === 'portrait') {
-      setCoverPortraitUrl(prev => { if (prev) URL.revokeObjectURL(prev); return url })
-    } else {
-      setCoverLandscapeUrl(prev => { if (prev) URL.revokeObjectURL(prev); return url })
-    }
+    setCoverPortraitUrl(prev => { if (prev) URL.revokeObjectURL(prev); return url })
   }
 
-  const handleCoverDelete = async (orientation: 'portrait' | 'landscape') => {
+  const handleCoverDelete = async () => {
     if (!video) return
-    const ext = orientation === 'portrait' ? video.coverPortrait : video.coverLandscape
-    if (ext) await deleteCoverImage(video.id, orientation, ext)
-    if (orientation === 'portrait') invalidateCoverThumbnailCache(video.id)
-    updateVideoCover(video.id, orientation, undefined)
-    if (orientation === 'portrait') {
-      setCoverPortraitUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
-    } else {
-      setCoverLandscapeUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
-    }
+    if (video.coverPortrait) await deleteCoverImage(video.id, 'portrait', video.coverPortrait)
+    invalidateCoverThumbnailCache(video.id)
+    updateVideoCover(video.id, 'portrait', undefined)
+    setCoverPortraitUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
   }
 
-  const handleCoverDownload = async (orientation: 'portrait' | 'landscape') => {
+  const handleCoverDownload = async () => {
     if (!video) return
-    const ext = orientation === 'portrait' ? video.coverPortrait : video.coverLandscape
+    const ext = video.coverPortrait
     if (!ext) return
-    const file = await readCoverFile(video.id, orientation, ext)
+    const file = await readCoverFile(video.id, 'portrait', ext)
     if (!file) return
 
     const safeTitle = video.title
@@ -129,7 +115,7 @@ export function VideoDetail() {
       .replace(/[\\/:*?"<>|]/g, '-')
       .replace(/\s+/g, ' ')
       .slice(0, 80) || video.id
-    const filename = `${safeTitle}-${orientation === 'portrait' ? '竖屏封面' : '横屏封面'}.${ext}`
+    const filename = `${safeTitle}-竖屏封面.${ext}`
     const url = URL.createObjectURL(file)
     const link = document.createElement('a')
     link.href = url
@@ -334,28 +320,15 @@ export function VideoDetail() {
             {/* Cover images */}
             <div style={{ padding: 20, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
               <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>封面图</p>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                {/* Portrait cover 3:4 */}
+              <div style={{ display: 'flex', alignItems: 'flex-start' }}>
                 <CoverSlot
                   label="竖屏 3:4"
-                  orientation="portrait"
                   url={coverPortraitUrl}
                   inputRef={portraitInputRef}
-                  onUpload={file => handleCoverUpload('portrait', file)}
-                  onDelete={() => handleCoverDelete('portrait')}
-                  onDownload={() => handleCoverDownload('portrait')}
+                  onUpload={handleCoverUpload}
+                  onDelete={handleCoverDelete}
+                  onDownload={handleCoverDownload}
                   width={120}
-                />
-                {/* Landscape cover 4:3 */}
-                <CoverSlot
-                  label="横屏 4:3"
-                  orientation="landscape"
-                  url={coverLandscapeUrl}
-                  inputRef={landscapeInputRef}
-                  onUpload={file => handleCoverUpload('landscape', file)}
-                  onDelete={() => handleCoverDelete('landscape')}
-                  onDownload={() => handleCoverDownload('landscape')}
-                  width={160}
                 />
               </div>
             </div>
@@ -1200,10 +1173,9 @@ function XiaohongshuAnalyticsTable({ records }: { records: XiaohongshuRawRecord[
 }
 
 function CoverSlot({
-  label, orientation, url, inputRef, onUpload, onDelete, onDownload, width,
+  label, url, inputRef, onUpload, onDelete, onDownload, width,
 }: {
   label: string
-  orientation: 'portrait' | 'landscape'
   url: string | null
   inputRef: React.RefObject<HTMLInputElement | null>
   onUpload: (file: File) => void
@@ -1211,7 +1183,7 @@ function CoverSlot({
   onDownload: () => void
   width: number
 }) {
-  const height = orientation === 'portrait' ? Math.round(width * 4 / 3) : Math.round(width * 3 / 4)
+  const height = Math.round(width * 4 / 3)
   const [hover, setHover] = useState(false)
 
   return (

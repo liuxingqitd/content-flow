@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Video } from '@/types'
-import { buildMonthlyCommercialTrend, buildPublishTrend } from './dashboardTrends'
+import {
+  buildDashboardCommercialTrend,
+  buildDashboardPublishTrend,
+} from './dashboardTrends'
 
 const video = (
   id: string,
@@ -22,136 +25,83 @@ const video = (
   ...overrides,
 })
 
-describe('buildPublishTrend', () => {
-  it('counts each video once in its first published week and fills empty weeks', () => {
-    const result = buildPublishTrend([
-      video('same-week', ['2026-07-13T09:00:00', '2026-07-19T20:00:00']),
-      video('cross-week', ['2026-07-06T09:00:00', '2026-07-20T09:00:00']),
-      video('invalid', ['not-a-date']),
-    ], 'week', new Date(2026, 6, 22), 3)
+describe('buildDashboardPublishTrend', () => {
+  it('uses the first valid platform date and counts each video once', () => {
+    const result = buildDashboardPublishTrend([
+      video('multi-platform', ['2026-08-02T09:00:00', '2026-08-01T09:00:00']),
+      video('invalid-first', ['not-a-date', '2026-08-02T10:00:00']),
+      video('future', ['2026-08-03T09:00:00']),
+    ], 'month', new Date(2026, 7, 2, 12))
 
-    expect(result.map(point => [point.rangeStart, point.count])).toEqual([
-      ['2026-07-06', 1],
-      ['2026-07-13', 1],
-      ['2026-07-20', 0],
+    expect(result).toHaveLength(2)
+    expect(result.map(point => [point.key, point.count])).toEqual([
+      ['2026-08-01', 1],
+      ['2026-08-02', 1],
     ])
   })
 
-  it('uses Monday as the start of the local week', () => {
-    const result = buildPublishTrend([
-      video('sunday', ['2026-07-19T23:59:00']),
-      video('monday', ['2026-07-20T00:00:00']),
-    ], 'week', new Date(2026, 6, 22), 2)
+  it('builds daily publication points for the selected week', () => {
+    const result = buildDashboardPublishTrend([
+      video('saturday', ['2026-08-01T09:00:00']),
+      video('sunday', ['2026-08-02T09:00:00']),
+      video('previous-week', ['2026-07-26T09:00:00']),
+    ], 'week', new Date(2026, 7, 2, 12))
 
-    expect(result.map(point => point.count)).toEqual([1, 1])
+    expect(result).toHaveLength(7)
+    expect(result.filter(point => point.count > 0).map(point => [point.key, point.count])).toEqual([
+      ['2026-08-01', 1],
+      ['2026-08-02', 1],
+    ])
   })
 
-  it('builds consecutive calendar months across years and uses the first valid platform date', () => {
-    const result = buildPublishTrend([
-      video('cross-month', ['not-a-date', '2025-12-31T12:00:00', '2026-01-02T09:00:00']),
+  it('builds month-to-date publication points for the selected year', () => {
+    const result = buildDashboardPublishTrend([
       video('january', ['2026-01-15T09:00:00']),
-      video('created-only', [], { createdAt: '2026-01-20T09:00:00' }),
-    ], 'month', new Date(2026, 1, 10), 3)
+      video('august', ['2026-08-01T09:00:00']),
+      video('next-year', ['2027-01-01T09:00:00']),
+    ], 'year', new Date(2026, 7, 2, 12))
 
-    expect(result.map(point => [point.key, point.label, point.count])).toEqual([
-      ['2025-12', '25/12', 1],
-      ['2026-01', '26/01', 1],
-      ['2026-02', '26/02', 0],
-    ])
-    expect(result[2].rangeEnd).toBe('2026-02-28')
-  })
-
-  it('keeps February when the reference date is at the end of a leap-year month', () => {
-    const result = buildPublishTrend([], 'month', new Date(2024, 2, 31), 2)
-
-    expect(result.map(point => [point.key, point.rangeEnd])).toEqual([
-      ['2024-02', '2024-02-29'],
-      ['2024-03', '2024-03-31'],
-    ])
-  })
-
-  it('returns no buckets for a non-positive bucket count', () => {
-    expect(buildPublishTrend([], 'month', new Date(2026, 0, 1), 0)).toEqual([])
-  })
-
-  it('does not count a future publication inside the current month', () => {
-    const result = buildPublishTrend([
-      video('published', ['2026-07-20T09:00:00']),
-      video('future', ['2026-07-25T09:00:00']),
-    ], 'month', new Date(2026, 6, 22, 12), 1)
-
-    expect(result[0].count).toBe(1)
+    expect(result).toHaveLength(8)
+    expect(result[0]).toMatchObject({ key: '2026-01', count: 1 })
+    expect(result[7]).toMatchObject({ key: '2026-08', count: 1 })
+    expect(result.reduce((sum, point) => sum + point.count, 0)).toBe(2)
   })
 })
 
-describe('buildMonthlyCommercialTrend', () => {
-  it('sums eligible commercial videos once by publication month', () => {
-    const result = buildMonthlyCommercialTrend([
-      video('commercial', ['2026-01-31T09:00:00', '2026-02-02T09:00:00'], {
+describe('buildDashboardCommercialTrend', () => {
+  it('keeps totals within the selected period and separates settlement status', () => {
+    const result = buildDashboardCommercialTrend([
+      video('settled', ['2026-08-01T09:00:00'], {
         isCommercial: true,
-        commercialAmount: 5000,
+        commercialAmount: 3000,
         commercialSettlementStatus: 'settled',
       }),
-      video('another', ['2026-01-15T09:00:00'], {
+      video('unsettled', ['2026-08-02T09:00:00'], {
         isCommercial: true,
         commercialAmount: 1200,
       }),
-      video('not-commercial', ['2026-01-10T09:00:00'], { commercialAmount: 9999 }),
-      video('zero', ['2026-01-10T09:00:00'], { isCommercial: true, commercialAmount: 0 }),
-      video('infinite', ['2026-01-10T09:00:00'], { isCommercial: true, commercialAmount: Infinity }),
-    ], new Date(2026, 1, 10), 2)
-
-    expect(result.map(point => [point.key, point.settledAmount, point.unsettledAmount])).toEqual([
-      ['2026-01', 5000, 1200],
-      ['2026-02', 0, 0],
-    ])
-  })
-
-  it('falls back to a valid creation month when no platform publish date exists', () => {
-    const result = buildMonthlyCommercialTrend([
-      video('created-only', [], {
-        isCommercial: true,
-        commercialAmount: 3000,
-        createdAt: '2026-02-03T09:00:00',
-      }),
-      video('invalid', ['not-a-date'], {
-        isCommercial: true,
-        commercialAmount: 500,
-        createdAt: 'invalid',
-      }),
-    ], new Date(2026, 1, 10), 2)
-
-    expect(result.map(point => [point.settledAmount, point.unsettledAmount])).toEqual([[0, 0], [0, 3000]])
-  })
-
-  it('fills empty months and returns no buckets for a non-positive count', () => {
-    const result = buildMonthlyCommercialTrend([], new Date(2026, 2, 10), 3)
-    expect(result.map(point => [point.settledAmount, point.unsettledAmount])).toEqual([[0, 0], [0, 0], [0, 0]])
-    expect(buildMonthlyCommercialTrend([], new Date(2026, 2, 10), -1)).toEqual([])
-  })
-
-  it('does not include future commercial videos in the current month', () => {
-    const result = buildMonthlyCommercialTrend([
-      video('future', ['2026-07-25T09:00:00'], {
+      video('previous-month', ['2026-07-31T09:00:00'], {
         isCommercial: true,
         commercialAmount: 5000,
       }),
-    ], new Date(2026, 6, 22, 12), 1)
+    ], 'month', new Date(2026, 7, 2, 12))
 
-    expect(result[0]).toMatchObject({ settledAmount: 0, unsettledAmount: 0 })
+    expect(result.reduce((sum, point) => sum + point.settledAmount, 0)).toBe(3000)
+    expect(result.reduce((sum, point) => sum + point.unsettledAmount, 0)).toBe(1200)
   })
 
-  it('sums each platform deal independently by its settlement status', () => {
-    const result = buildMonthlyCommercialTrend([
-      video('platform-deal', ['2026-01-15T09:00:00'], {
+  it('falls back to creation date and sums platform deals independently', () => {
+    const result = buildDashboardCommercialTrend([
+      video('created-only', [], {
         isCommercial: true,
+        createdAt: '2026-08-01T09:00:00',
         commercialDealType: 'platform',
         platformCommercialSettlements: [
-          { platform: 'douyin', amount: 1800, settlementCycle: '发布后30天', settlementStatus: 'settled' },
-          { platform: 'xiaohongshu', amount: 2200, settlementCycle: '次月15日', settlementStatus: 'unsettled' },
+          { platform: 'douyin', amount: 1800, settlementStatus: 'settled' },
+          { platform: 'xiaohongshu', amount: 2200, settlementStatus: 'unsettled' },
         ],
       }),
-    ], new Date(2026, 0, 31), 1)
+    ], 'month', new Date(2026, 7, 2, 12))
 
     expect(result[0]).toMatchObject({ settledAmount: 1800, unsettledAmount: 2200 })
   })
