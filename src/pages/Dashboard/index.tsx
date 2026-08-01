@@ -222,7 +222,7 @@ export function Dashboard() {
         )}
 
         {/* Stats grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 8 }}>
+        <div className="dashboard-summary">
           {[
             { label: '发布视频', value: periodPublishedVideos.length, sub: periodLabel, accent: true, path: '/videos' },
             { label: '新建视频', value: periodVideos.length, sub: periodLabel, accent: false, path: '/kanban' },
@@ -231,30 +231,17 @@ export function Dashboard() {
             { label: '逐字稿', value: periodScripts.length, sub: periodLabel, accent: false, path: '/scripts' },
           ].map(stat => (
             <button
+              className="dashboard-summary-item"
               key={stat.label}
               onClick={() => navigate(stat.path)}
               style={{
-                borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--border-subtle)',
-                background: 'var(--bg-surface)',
                 padding: '12px 14px',
                 textAlign: 'left',
                 cursor: 'pointer',
-                transition: 'border-color .12s, box-shadow .12s',
-              }}
-              onMouseEnter={e => {
-                const el = e.currentTarget as HTMLElement
-                el.style.borderColor = 'var(--border-default)'
-                el.style.boxShadow = 'var(--shadow-xs)'
-              }}
-              onMouseLeave={e => {
-                const el = e.currentTarget as HTMLElement
-                el.style.borderColor = 'var(--border-subtle)'
-                el.style.boxShadow = 'none'
               }}
             >
               <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 5 }}>{stat.label}</p>
-              <p style={{ fontSize: 24, fontWeight: 650, color: stat.accent ? 'var(--accent)' : 'var(--text-primary)', lineHeight: 1.1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</p>
+              <p style={{ fontSize: 24, fontWeight: 630, color: stat.accent ? 'var(--accent)' : 'var(--text-primary)', lineHeight: 1.1, letterSpacing: '-0.015em', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</p>
               <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>{stat.sub}</p>
             </button>
           ))}

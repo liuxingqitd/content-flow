@@ -24,17 +24,17 @@ export const VideoCard = memo(function VideoCard({ video, tags, onClick, isDragO
 
   const style: React.CSSProperties = {
     transform: isDragOverlay
-      ? `${CSS.Transform.toString(transform)} rotate(1.5deg) scale(1.03)`
+      ? `${CSS.Transform.toString(transform)} scale(1.01)`
       : CSS.Transform.toString(transform) ?? undefined,
     transition: isDragOverlay ? undefined : transition,
-    background: isDragging ? 'var(--bg-surface)' : 'var(--bg-elevated)',
-    border: `1.5px ${isDragging ? 'dashed' : 'solid'} ${isDragging ? 'var(--accent)' : 'var(--border-subtle)'}`,
-    borderRadius: 10,
-    padding: '12px 14px',
+    background: 'var(--bg-surface)',
+    border: `1px ${isDragging ? 'dashed' : 'solid'} ${isDragging ? 'var(--accent)' : 'var(--border-subtle)'}`,
+    borderRadius: 'var(--radius-lg)',
+    padding: '11px 12px',
     cursor: isDragOverlay ? 'grabbing' : 'grab',
     opacity: isDragging ? 0.45 : 1,
     boxShadow: isDragOverlay
-      ? '0 16px 40px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.12)'
+      ? 'var(--shadow-md)'
       : 'none',
     userSelect: 'none',
   }
@@ -50,7 +50,7 @@ export const VideoCard = memo(function VideoCard({ video, tags, onClick, isDragO
         if (!isDragging && !isDragOverlay) {
           const el = e.currentTarget as HTMLElement
           el.style.borderColor = 'var(--border-default)'
-          el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'
+          el.style.boxShadow = 'none'
         }
       }}
       onMouseLeave={e => {
@@ -69,12 +69,13 @@ export const VideoCard = memo(function VideoCard({ video, tags, onClick, isDragO
               key={tag.id}
               style={{
                 display: 'inline-flex', alignItems: 'center',
-                padding: '1px 7px', borderRadius: 99,
+                gap: 5, padding: '0 5px', borderRadius: 4,
                 fontSize: 11, fontWeight: 500,
-                background: tag.color + '28',
-                color: tag.color,
+                background: 'var(--bg-raised)',
+                color: 'var(--text-secondary)',
               }}
             >
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: tag.color }} />
               {tag.name}
             </span>
           ))}
@@ -83,7 +84,7 @@ export const VideoCard = memo(function VideoCard({ video, tags, onClick, isDragO
 
       {/* Title */}
       <p style={{
-        fontSize: 13.5, fontWeight: 500, lineHeight: 1.45,
+        fontSize: 13.5, fontWeight: 530, lineHeight: 1.5,
         color: 'var(--text-primary)',
         display: '-webkit-box',
         WebkitLineClamp: 2,

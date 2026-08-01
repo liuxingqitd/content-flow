@@ -52,23 +52,21 @@ export function DirectorySetup() {
         borderRadius: 'var(--radius-xl)',
         border: '1px solid var(--border-subtle)',
         background: 'var(--bg-surface)',
-        boxShadow: 'var(--shadow-lg)',
+        boxShadow: 'none',
       }}>
         {/* Logo */}
         <div style={{
-          width: 48, height: 48, borderRadius: 'var(--radius-lg)',
-          background: 'linear-gradient(135deg, var(--accent) 0%, #a78bfa 100%)',
+          width: 42, height: 42, borderRadius: 'var(--radius-lg)',
+          background: 'var(--text-primary)', color: 'var(--text-inverse)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           margin: '0 auto 20px',
-          boxShadow: '0 0 0 1px var(--accent-glow), 0 8px 24px var(--accent-glow)',
+          border: '1px solid var(--border-strong)', fontSize: 13, fontWeight: 750,
         }}>
-          <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-            <path d="M4 16l6 6 14-12" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          CF
         </div>
 
-        <h1 style={{ fontSize: 20, fontWeight: 650, color: 'var(--text-primary)', marginBottom: 8, letterSpacing: '-0.02em' }}>起哥的AI实战</h1>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.7 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 650, color: 'var(--text-primary)', marginBottom: 5 }}>设置 ContentFlow</h1>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.7 }}>
           选择一个本地文件夹作为数据目录，<br />
           您的所有数据将安全地存储在本地。
         </p>
@@ -90,8 +88,9 @@ export function DirectorySetup() {
             }}>
               <div style={{
                 width: 22, height: 22, borderRadius: 'var(--radius-sm)',
-                background: 'var(--accent-subtle)',
-                color: 'var(--accent)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-default)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, fontWeight: 600, flexShrink: 0,
               }}>

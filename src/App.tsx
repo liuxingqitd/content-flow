@@ -67,7 +67,7 @@ export function App() {
   const data = useAppStore(s => s.data)
   const loading = useAppStore(s => s.loading)
   const error = useAppStore(s => s.error)
-  const theme = useAppStore(s => s.data?.settings.theme ?? 'dark')
+  const theme = useAppStore(s => s.data?.settings.theme ?? 'light')
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)

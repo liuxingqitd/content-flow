@@ -31,23 +31,12 @@ export function Modal({ open, onClose, title, children, size = 'md', footer }: M
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       {/* Backdrop */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: 'rgba(4,4,8,0.68)',
-        backdropFilter: 'blur(6px)',
-        WebkitBackdropFilter: 'blur(6px)',
-      }} onClick={onClose} />
+      <div className="ui-modal-backdrop" onClick={onClose} />
 
       {/* Panel */}
       <div
-        style={{
-          position: 'relative', width: '100%', maxWidth: WIDTHS[size],
-          background: 'var(--bg-overlay)',
-          border: '1px solid var(--border-default)',
-          borderRadius: 'var(--radius-xl)',
-          boxShadow: 'var(--shadow-xl)',
-          animation: 'scaleIn var(--duration-normal) var(--ease-out)',
-        }}
+        className="ui-modal-panel"
+        style={{ maxWidth: WIDTHS[size] }}
       >
         {title && (
           <div style={{
@@ -55,7 +44,7 @@ export function Modal({ open, onClose, title, children, size = 'md', footer }: M
             padding: '16px 20px',
             borderBottom: '1px solid var(--border-subtle)',
           }}>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{title}</h2>
+            <h2 style={{ fontSize: 15, fontWeight: 620, color: 'var(--text-primary)' }}>{title}</h2>
             <button
               onClick={onClose}
               style={{

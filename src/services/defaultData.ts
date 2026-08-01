@@ -195,7 +195,7 @@ export function defaultAppData(): AppData {
     shipinhaoRecords: [],
     xiaohongshuRecords: [],
     settings: {
-      theme: 'dark',
+      theme: 'light',
       defaultPlatforms: ['douyin', 'xiaohongshu', 'shipinhao'],
       violationReasons: ['违反社区公约', '涉嫌第三方导流'],
       hidePromotionCost: false,

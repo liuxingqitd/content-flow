@@ -13,9 +13,9 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       justifyContent: 'center', padding: '56px 32px', textAlign: 'center',
     }}>
-      {icon && <div style={{ color: 'var(--text-tertiary)', marginBottom: 16, opacity: 0.65 }}>{icon}</div>}
-      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>{title}</p>
-      {description && <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 16, maxWidth: 280 }}>{description}</p>}
+      {icon && <div style={{ display: 'grid', width: 36, height: 36, placeItems: 'center', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-raised)', color: 'var(--text-tertiary)', marginBottom: 14 }}>{icon}</div>}
+      <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 5 }}>{title}</p>
+      {description && <p style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--text-tertiary)', marginBottom: 16, maxWidth: 300 }}>{description}</p>}
       {action}
     </div>
   )

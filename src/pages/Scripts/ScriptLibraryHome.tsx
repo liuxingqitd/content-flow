@@ -43,11 +43,6 @@ export function ScriptLibraryHome({
         <EmptyState title="没有匹配的逐字稿" description={query ? '换个关键词试试' : '暂无稿件'} />
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12, marginBottom: 24 }}>
-            <RecentPanel title="最近编辑" description="优先继续正在修改的稿件" scripts={recentEdited} dateOf={getScriptLastEditedAt} onSelect={onSelect} />
-            <RecentPanel title="最近创建" description="快速找到刚加入的稿件" scripts={recentCreated} dateOf={script => script.createdAt} onSelect={onSelect} />
-          </div>
-
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
             <div>
               <h2 style={{ fontSize: 14, fontWeight: 650, color: 'var(--text-primary)' }}>全部逐字稿</h2>
@@ -96,42 +91,6 @@ export function ScriptLibraryHome({
   )
 }
 
-function RecentPanel({
-  title,
-  description,
-  scripts,
-  dateOf,
-  onSelect,
-}: {
-  title: string
-  description: string
-  scripts: Script[]
-  dateOf: (script: Script) => string
-  onSelect: (script: Script) => void
-}) {
-  return (
-    <section style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)', padding: 14 }}>
-      <h2 style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-primary)' }}>{title}</h2>
-      <p style={{ marginTop: 2, marginBottom: 9, fontSize: 10, color: 'var(--text-tertiary)' }}>{description}</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {scripts.map(script => (
-          <button
-            key={script.id}
-            type="button"
-            onClick={() => onSelect(script)}
-            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 8, padding: '7px 8px', border: 'none', borderRadius: 'var(--radius-md)', background: 'transparent', textAlign: 'left', cursor: 'pointer', color: 'inherit' }}
-            onMouseEnter={event => { event.currentTarget.style.background = 'var(--bg-hover)' }}
-            onMouseLeave={event => { event.currentTarget.style.background = 'transparent' }}
-          >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text-primary)' }}>{script.title}</span>
-            <span style={{ fontSize: 10, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{fromNow(dateOf(script))}</span>
-          </button>
-        ))}
-      </div>
-    </section>
-  )
-}
-
 function SmallMarker({ label, color }: { label: string; color: string }) {
-  return <span style={{ fontSize: 9, fontWeight: 600, color, padding: '2px 5px', border: '1px solid currentColor', borderRadius: 99 }}>{label}</span>
+  return <span style={{ fontSize: 10.5, fontWeight: 550, color, padding: '1px 5px', border: '1px solid currentColor', borderRadius: 4 }}>{label}</span>
 }

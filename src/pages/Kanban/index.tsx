@@ -39,24 +39,24 @@ function KanbanColumn({
   const { setNodeRef } = useDroppable({ id: status })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: 264, flexShrink: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: 276, flexShrink: 0 }}>
       {/* Column header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 4px', marginBottom: 8,
+        padding: '0 3px 0 1px', marginBottom: 8,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_DOT[status], flexShrink: 0 }} />
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_DOT[status], flexShrink: 0 }} />
+          <span style={{ fontSize: 12.5, fontWeight: 580, color: 'var(--text-secondary)' }}>
             {VIDEO_STATUS_LABELS[status]}
           </span>
           {videos.length > 0 && (
             <span style={{
-              fontSize: 11, fontWeight: 600, padding: '1px 6px',
-              borderRadius: 99,
-              background: 'var(--bg-raised, var(--bg-elevated))',
+              fontSize: 11, fontWeight: 580, padding: '0 5px',
+              borderRadius: 4,
+              background: 'transparent',
               color: 'var(--text-tertiary)',
-              border: '1px solid var(--border-subtle)',
+              border: '1px solid var(--border-default)',
             }}>
               {videos.length}
             </span>
@@ -71,12 +71,12 @@ function KanbanColumn({
           flex: 1,
           minHeight: 120,
           borderRadius: 'var(--radius-lg)',
-          padding: 6,
+          padding: 5,
           display: 'flex',
           flexDirection: 'column',
           gap: 6,
-          background: isDragOver ? 'var(--accent-subtle)' : 'var(--bg-base)',
-          border: `1px solid ${isDragOver ? 'var(--accent)' : 'var(--border-subtle)'}`,
+          background: isDragOver ? 'var(--accent-subtle)' : 'color-mix(in srgb, var(--bg-raised) 48%, transparent)',
+          border: `1px solid ${isDragOver ? 'var(--accent)' : 'transparent'}`,
           transition: 'all .15s',
         }}
       >
@@ -187,27 +187,20 @@ export function Kanban() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-base)' }}>
       {/* Header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        minHeight: 'var(--header-h, 52px)',
-        padding: '10px 24px',
-        borderBottom: '1px solid var(--border-subtle)',
-        background: 'var(--bg-surface)',
-        flexShrink: 0,
-      }}>
+      <div className="page-header responsive-page-header">
         <div>
-          <h1 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>看板</h1>
-          <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>拖拽卡片切换阶段</p>
+          <h1 className="page-title">内容看板</h1>
+          <p className="page-subtitle">拖拽内容推进制作阶段</p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
             onClick={() => setShowArchived(!showArchived)}
             style={{
-              padding: '5px 10px', borderRadius: 'var(--radius-sm)', fontSize: 12,
-              border: '1px solid var(--border-subtle)',
-              background: showArchived ? 'var(--bg-active)' : 'transparent',
-              color: 'var(--text-tertiary)', cursor: 'pointer',
+              height: 28, padding: '0 9px', borderRadius: 'var(--radius-md)', fontSize: 12,
+              border: '1px solid var(--border-default)',
+              background: showArchived ? 'var(--bg-active)' : 'var(--bg-surface)',
+              color: 'var(--text-secondary)', cursor: 'pointer',
               transition: 'all .12s',
             }}
             onMouseEnter={e => {
@@ -236,8 +229,8 @@ export function Kanban() {
       >
         <div style={{
           flex: 1, overflowX: 'auto',
-          display: 'flex', gap: 12,
-          padding: '16px 24px',
+          display: 'flex', gap: 14,
+          padding: '18px 24px 28px',
           alignItems: 'flex-start',
         }}>
           {displayCols.map(status => (
