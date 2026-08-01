@@ -2,67 +2,16 @@ import type { Script, Topic, Video } from '@/types'
 import { Input } from '@/components/ui/Input'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { fromNow, formatDuration } from '@/utils/date'
-import { getRecentScriptGroups, getScriptLastEditedAt, type ScriptSourceFilter } from './scriptLibrary'
-
-const sourceMeta = {
-  ai: { label: 'AI 写稿', color: 'var(--accent)', background: 'var(--accent-subtle)' },
-  human: { label: '人工撰写', color: 'var(--success)', background: 'rgba(52,211,153,0.12)' },
-  unmarked: { label: '未标注', color: 'var(--text-tertiary)', background: 'var(--bg-raised)' },
-} as const
-
-export function ScriptSourceBadge({ script }: { script: Script }) {
-  const meta = sourceMeta[script.writingSource ?? 'unmarked']
-  return (
-    <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 10, fontWeight: 600, color: meta.color, background: meta.background, whiteSpace: 'nowrap' }}>
-      {meta.label}
-    </span>
-  )
-}
-
-export function ScriptSourceSelect({
-  script,
-  onChange,
-}: {
-  script: Script
-  onChange: (source: Script['writingSource']) => void
-}) {
-  return (
-    <select
-      aria-label={`${script.title}的写稿来源`}
-      value={script.writingSource ?? ''}
-      onClick={event => event.stopPropagation()}
-      onChange={event => onChange((event.target.value || undefined) as Script['writingSource'])}
-      style={{
-        height: 25,
-        padding: '0 7px',
-        borderRadius: 99,
-        border: '1px solid var(--border-subtle)',
-        background: 'var(--bg-raised)',
-        color: 'var(--text-secondary)',
-        fontFamily: 'inherit',
-        fontSize: 10,
-        cursor: 'pointer',
-        outline: 'none',
-      }}
-    >
-      <option value="">未标注</option>
-      <option value="ai">AI 写稿</option>
-      <option value="human">人工撰写</option>
-    </select>
-  )
-}
+import { getRecentScriptGroups, getScriptLastEditedAt } from './scriptLibrary'
 
 interface ScriptLibraryHomeProps {
   scripts: Script[]
   topics: Topic[]
   videos: Video[]
   query: string
-  sourceFilter: ScriptSourceFilter
   onQueryChange: (query: string) => void
-  onSourceFilterChange: (filter: ScriptSourceFilter) => void
   onSelect: (script: Script) => void
   onDelete: (id: string) => void
-  onSourceChange: (id: string, source: Script['writingSource']) => void
 }
 
 export function ScriptLibraryHome({
@@ -70,12 +19,9 @@ export function ScriptLibraryHome({
   topics,
   videos,
   query,
-  sourceFilter,
   onQueryChange,
-  onSourceFilterChange,
   onSelect,
   onDelete,
-  onSourceChange,
 }: ScriptLibraryHomeProps) {
   const { recentEdited, recentCreated } = getRecentScriptGroups(scripts)
   const recentEditedIds = new Set(recentEdited.map(script => script.id))
@@ -87,40 +33,14 @@ export function ScriptLibraryHome({
 
   return (
     <div style={{ flex: 1, minWidth: 0, width: '100%', height: '100%', overflowY: 'auto', padding: '20px 24px 36px', background: 'var(--bg-base)' }}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap' }}>
+      <div style={{ marginBottom: 20 }}>
         <div style={{ width: 300, maxWidth: '100%' }}>
           <Input placeholder="搜索逐字稿…" value={query} onChange={event => onQueryChange(event.target.value)} />
-        </div>
-        <div role="group" aria-label="按写稿来源筛选" style={{ display: 'flex', gap: 4, padding: 3, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', background: 'var(--bg-raised)' }}>
-          {([
-            ['all', '全部'],
-            ['ai', 'AI 写稿'],
-            ['human', '人工撰写'],
-            ['unmarked', '未标注'],
-          ] as const).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={sourceFilter === value}
-              onClick={() => onSourceFilterChange(value)}
-              style={{
-                border: 'none',
-                borderRadius: 'calc(var(--radius-md) - 2px)',
-                padding: '5px 10px',
-                background: sourceFilter === value ? 'var(--bg-surface)' : 'transparent',
-                color: sourceFilter === value ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                boxShadow: sourceFilter === value ? 'var(--shadow-xs)' : 'none',
-                fontSize: 11,
-                fontWeight: sourceFilter === value ? 600 : 500,
-                cursor: 'pointer',
-              }}
-            >{label}</button>
-          ))}
         </div>
       </div>
 
       {scripts.length === 0 ? (
-        <EmptyState title="没有匹配的逐字稿" description={query ? '换个关键词或来源筛选试试' : '当前筛选下暂无稿件'} />
+        <EmptyState title="没有匹配的逐字稿" description={query ? '换个关键词试试' : '暂无稿件'} />
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12, marginBottom: 24 }}>
@@ -147,8 +67,7 @@ export function ScriptLibraryHome({
                 onMouseEnter={event => { event.currentTarget.style.borderColor = 'var(--border-default)'; event.currentTarget.style.boxShadow = 'var(--shadow-xs)' }}
                 onMouseLeave={event => { event.currentTarget.style.borderColor = 'var(--border-subtle)'; event.currentTarget.style.boxShadow = 'none' }}
               >
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-                  <ScriptSourceSelect script={script} onChange={source => onSourceChange(script.id, source)} />
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 10 }}>
                   <button
                     type="button"
                     aria-label={`删除${script.title}`}
@@ -200,12 +119,11 @@ function RecentPanel({
             key={script.id}
             type="button"
             onClick={() => onSelect(script)}
-            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', alignItems: 'center', gap: 8, padding: '7px 8px', border: 'none', borderRadius: 'var(--radius-md)', background: 'transparent', textAlign: 'left', cursor: 'pointer', color: 'inherit' }}
+            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 8, padding: '7px 8px', border: 'none', borderRadius: 'var(--radius-md)', background: 'transparent', textAlign: 'left', cursor: 'pointer', color: 'inherit' }}
             onMouseEnter={event => { event.currentTarget.style.background = 'var(--bg-hover)' }}
             onMouseLeave={event => { event.currentTarget.style.background = 'transparent' }}
           >
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text-primary)' }}>{script.title}</span>
-            <ScriptSourceBadge script={script} />
             <span style={{ fontSize: 10, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{fromNow(dateOf(script))}</span>
           </button>
         ))}

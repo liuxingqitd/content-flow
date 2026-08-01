@@ -1,7 +1,5 @@
 import type { Script } from '@/types'
 
-export type ScriptSourceFilter = 'all' | 'ai' | 'human' | 'unmarked'
-
 const timestamp = (value?: string) => {
   const parsed = value ? new Date(value).getTime() : Number.NaN
   return Number.isFinite(parsed) ? parsed : 0
@@ -22,12 +20,6 @@ export const sortScriptsByCreated = (scripts: Script[]) =>
     timestamp(b.createdAt) - timestamp(a.createdAt)
     || a.id.localeCompare(b.id),
   )
-
-export function filterScriptsBySource(scripts: Script[], filter: ScriptSourceFilter) {
-  if (filter === 'all') return scripts
-  if (filter === 'unmarked') return scripts.filter(script => !script.writingSource)
-  return scripts.filter(script => script.writingSource === filter)
-}
 
 export function getRecentScriptGroups(scripts: Script[], limit = 4) {
   return {

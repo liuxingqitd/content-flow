@@ -5,7 +5,6 @@ import { useAppStore } from '@/store/appStore'
 import { PageContainer } from '@/components/layout/PageContainer'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
 import { ScriptEditor } from './ScriptEditor'
@@ -13,8 +12,8 @@ import type { Script } from '@/types'
 import { fromNow, formatDate } from '@/utils/date'
 import { formatDuration } from '@/utils/date'
 import { readScriptContent, writeScriptContent, deleteScriptFile } from '@/services/fileSystem'
-import { ScriptLibraryHome, ScriptSourceBadge, ScriptSourceSelect } from './ScriptLibraryHome'
-import { filterScriptsBySource, getScriptLastEditedAt, sortScriptsByLastEdited, type ScriptSourceFilter } from './scriptLibrary'
+import { ScriptLibraryHome } from './ScriptLibraryHome'
+import { getScriptLastEditedAt, sortScriptsByLastEdited } from './scriptLibrary'
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
 
 let scriptSaveQueue: Promise<void> = Promise.resolve()
@@ -45,7 +44,6 @@ export function Scripts() {
   const deleteScript = useAppStore(s => s.deleteScript)
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [sourceFilter, setSourceFilter] = useState<ScriptSourceFilter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(urlId ?? null)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleValue, setTitleValue] = useState('')
@@ -54,7 +52,6 @@ export function Scripts() {
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [newModal, setNewModal] = useState(false)
   const [newTitle, setNewTitle] = useState('')
-  const [newSource, setNewSource] = useState<Script['writingSource']>(undefined)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')
 
@@ -72,9 +69,8 @@ export function Scripts() {
   }), [sortedScripts])
 
   const filteredScripts = useMemo(() => {
-    const searched = searchQuery.trim() ? fuse.search(searchQuery).map(r => r.item) : sortedScripts
-    return filterScriptsBySource(searched, sourceFilter)
-  }, [searchQuery, sourceFilter, fuse, sortedScripts])
+    return searchQuery.trim() ? fuse.search(searchQuery).map(r => r.item) : sortedScripts
+  }, [searchQuery, fuse, sortedScripts])
 
   const selectedScript = scripts.find(s => s.id === selectedId)
 
@@ -183,11 +179,9 @@ export function Scripts() {
       wordCount: 0,
       estimatedDuration: 0,
       tagIds: [],
-      writingSource: newSource,
     })
     setNewModal(false)
     setNewTitle('')
-    setNewSource(undefined)
     setTimeout(() => {
       const newest = useAppStore.getState().data?.scripts.slice(-1)[0]
       if (newest) {
@@ -286,12 +280,9 @@ export function Scripts() {
             topics={topics}
             videos={videos}
             query={searchQuery}
-            sourceFilter={sourceFilter}
             onQueryChange={setSearchQuery}
-            onSourceFilterChange={setSourceFilter}
             onSelect={handleSelect}
             onDelete={setDeleteConfirm}
-            onSourceChange={(id, writingSource) => updateScript(id, { writingSource })}
           />
         ) : (
           <>
@@ -358,10 +349,7 @@ export function Scripts() {
                         </>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 5 }}>
-                      <p style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>编辑于 {fromNow(getScriptLastEditedAt(script))}</p>
-                      <ScriptSourceBadge script={script} />
-                    </div>
+                    <p style={{ marginTop: 5, fontSize: 10, color: 'var(--text-tertiary)' }}>编辑于 {fromNow(getScriptLastEditedAt(script))}</p>
 
                     <button
                       onClick={e => { e.stopPropagation(); setDeleteConfirm(script.id) }}
@@ -435,10 +423,6 @@ export function Scripts() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  <ScriptSourceSelect
-                    script={selectedScript}
-                    onChange={writingSource => updateScript(selectedScript.id, { writingSource })}
-                  />
                   {saveLabel && (
                     <span style={{ fontSize: 12, color: saveLabelColor, transition: 'color .2s' }}>
                       {saveLabel}
@@ -529,16 +513,6 @@ export function Scripts() {
             onChange={e => setNewTitle(e.target.value)}
             autoFocus
             onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
-          />
-          <Select
-            label="写稿来源"
-            value={newSource ?? ''}
-            onChange={event => setNewSource((event.target.value || undefined) as Script['writingSource'])}
-            options={[
-              { value: '', label: '未标注' },
-              { value: 'ai', label: 'AI 写稿' },
-              { value: 'human', label: '人工撰写' },
-            ]}
           />
         </div>
       </Modal>

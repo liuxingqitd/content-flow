@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Topic } from '@/types'
-import { parsePotentialScore, sortTopics } from './topicListUtils'
+import { getTopicCreationSourceLabel, parsePotentialScore, sortTopics } from './topicListUtils'
 
 const topic = (id: string, potentialScore: number | undefined, updatedAt: string): Topic => ({
   id,
@@ -25,6 +25,14 @@ describe('parsePotentialScore', () => {
     expect(parsePotentialScore('abc').error).toBeTruthy()
     expect(parsePotentialScore('-1').error).toBeTruthy()
     expect(parsePotentialScore('101').error).toBeTruthy()
+  })
+})
+
+describe('getTopicCreationSourceLabel', () => {
+  it('only returns labels for explicit topic sources', () => {
+    expect(getTopicCreationSourceLabel('ai')).toBe('AI')
+    expect(getTopicCreationSourceLabel('human')).toBe('人工')
+    expect(getTopicCreationSourceLabel(undefined)).toBeNull()
   })
 })
 

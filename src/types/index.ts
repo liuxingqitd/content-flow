@@ -146,6 +146,8 @@ export interface Topic {
   status: TopicStatus
   tagIds: string[]
   inspiration?: string
+  /** Explicit source of the topic idea. Missing means the source has not been confirmed. */
+  creationSource?: 'ai' | 'human'
   linkedVideoId?: string
   abandonedAt?: string
   createdAt: string
@@ -160,8 +162,6 @@ export interface Script {
   wordCount: number
   estimatedDuration: number
   tagIds: string[]
-  /** Explicit authorship label. Missing means the source has not been confirmed. */
-  writingSource?: 'ai' | 'human'
   /** Last time the Markdown body changed; metadata edits must not affect edit recency. */
   contentUpdatedAt?: string
   version: number

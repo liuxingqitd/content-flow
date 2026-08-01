@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import type { Topic, TopicStatus } from '@/types'
 import { TOPIC_STATUS_LABELS, VIDEO_STATUS_LABELS } from '@/types'
 import { fromNow } from '@/utils/date'
-import { parsePotentialScore, sortTopics, type TopicSortMode } from './topicListUtils'
+import { getTopicCreationSourceLabel, parsePotentialScore, sortTopics, type TopicSortMode } from './topicListUtils'
 
 const STATUS_COLORS: Record<TopicStatus, string> = {
   inspiration: 'var(--status-topic, var(--status-topic-text))',
@@ -48,7 +48,13 @@ export function Topics() {
   const [filterStatus, setFilterStatus] = useState<TopicStatus | 'all'>('inspiration')
   const [sortMode, setSortMode] = useState<TopicSortMode>('default')
   const [modal, setModal] = useState<{ mode: 'new' | 'edit'; topic?: Topic } | null>(null)
-  const [form, setForm] = useState({ title: '', description: '', inspiration: '', potentialScore: '' })
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    inspiration: '',
+    potentialScore: '',
+    creationSource: '' as Topic['creationSource'] | '',
+  })
   const [adoptedToast, setAdoptedToast] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Topic | null>(null)
   const [linkModal, setLinkModal] = useState<Topic | null>(null)
@@ -65,7 +71,7 @@ export function Topics() {
   const parsedPotentialScore = parsePotentialScore(form.potentialScore)
 
   const openNew = () => {
-    setForm({ title: '', description: '', inspiration: '', potentialScore: '' })
+    setForm({ title: '', description: '', inspiration: '', potentialScore: '', creationSource: '' })
     setModal({ mode: 'new' })
   }
 
@@ -75,6 +81,7 @@ export function Topics() {
       description: topic.description ?? '',
       inspiration: topic.inspiration ?? '',
       potentialScore: topic.potentialScore?.toString() ?? '',
+      creationSource: topic.creationSource ?? '',
     })
     setModal({ mode: 'edit', topic })
   }
@@ -89,6 +96,7 @@ export function Topics() {
         status: 'inspiration',
         tagIds: [],
         inspiration: form.inspiration.trim() || undefined,
+        creationSource: form.creationSource || undefined,
       })
     } else if (modal?.topic) {
       updateTopic(modal.topic.id, {
@@ -96,6 +104,7 @@ export function Topics() {
         description: form.description.trim() || undefined,
         inspiration: form.inspiration.trim() || undefined,
         potentialScore: parsedPotentialScore.value,
+        creationSource: form.creationSource || undefined,
       })
     }
     setModal(null)
@@ -241,6 +250,7 @@ export function Topics() {
             const linkedVideo = videos.find(v => v.topicId === topic.id || v.id === topic.linkedVideoId)
             const needsSync = topic.status === 'in_progress' && linkedVideo?.status === 'published'
             const notLinked = topic.status === 'in_progress' && !linkedVideo
+            const creationSourceLabel = getTopicCreationSourceLabel(topic.creationSource)
 
             return (
               <div
@@ -268,33 +278,47 @@ export function Topics() {
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
                   <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4, letterSpacing: '-0.01em', flex: 1 }}>{topic.title}</h3>
-                  <span
-                    title="选题潜力分（发布前人工评估）"
-                    style={{
-                      fontSize: 10,
-                      lineHeight: 1,
-                      padding: '4px 7px',
-                      borderRadius: 999,
-                      flexShrink: 0,
-                      fontWeight: typeof topic.potentialScore === 'number' ? 700 : 500,
-                      color: typeof topic.potentialScore !== 'number'
-                        ? 'var(--text-tertiary)'
-                        : topic.potentialScore >= 80
-                          ? 'var(--status-published, var(--status-published-text))'
-                          : topic.potentialScore >= 60
-                            ? 'var(--accent)'
-                            : 'var(--danger)',
-                      background: typeof topic.potentialScore !== 'number'
-                        ? 'var(--bg-raised, var(--bg-elevated))'
-                        : topic.potentialScore >= 80
-                          ? 'var(--status-published-bg)'
-                          : topic.potentialScore >= 60
-                            ? 'var(--accent-subtle)'
-                            : 'rgba(248,113,113,0.12)',
-                    }}
-                  >
-                    {typeof topic.potentialScore === 'number' ? `${topic.potentialScore} 分` : '未评分'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                    {creationSourceLabel && (
+                      <span style={{
+                        fontSize: 10,
+                        lineHeight: 1,
+                        padding: '4px 7px',
+                        borderRadius: 99,
+                        fontWeight: 650,
+                        color: topic.creationSource === 'ai' ? 'var(--accent)' : 'var(--success)',
+                        background: topic.creationSource === 'ai' ? 'var(--accent-subtle)' : 'rgba(52,211,153,0.12)',
+                      }}>
+                        {creationSourceLabel}
+                      </span>
+                    )}
+                    <span
+                      title="选题潜力分（发布前人工评估）"
+                      style={{
+                        fontSize: 10,
+                        lineHeight: 1,
+                        padding: '4px 7px',
+                        borderRadius: 999,
+                        fontWeight: typeof topic.potentialScore === 'number' ? 700 : 500,
+                        color: typeof topic.potentialScore !== 'number'
+                          ? 'var(--text-tertiary)'
+                          : topic.potentialScore >= 80
+                            ? 'var(--status-published, var(--status-published-text))'
+                            : topic.potentialScore >= 60
+                              ? 'var(--accent)'
+                              : 'var(--danger)',
+                        background: typeof topic.potentialScore !== 'number'
+                          ? 'var(--bg-raised, var(--bg-elevated))'
+                          : topic.potentialScore >= 80
+                            ? 'var(--status-published-bg)'
+                            : topic.potentialScore >= 60
+                              ? 'var(--accent-subtle)'
+                              : 'rgba(248,113,113,0.12)',
+                      }}
+                    >
+                      {typeof topic.potentialScore === 'number' ? `${topic.potentialScore} 分` : '未评分'}
+                    </span>
+                  </div>
                 </div>
 
                 {topic.description && (
@@ -540,6 +564,16 @@ export function Topics() {
             onChange={e => setForm(f => ({ ...f, potentialScore: e.target.value }))}
             placeholder="未评分"
             error={parsedPotentialScore.error}
+          />
+          <Select
+            label="选题产生方式"
+            value={form.creationSource}
+            onChange={e => setForm(f => ({ ...f, creationSource: e.target.value as Topic['creationSource'] | '' }))}
+            options={[
+              { value: '', label: '未标注' },
+              { value: 'ai', label: 'AI' },
+              { value: 'human', label: '人工' },
+            ]}
           />
           <Textarea label="角度描述" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="这个选题的独特角度或核心卖点" />
           <Input label="灵感来源" value={form.inspiration} onChange={e => setForm(f => ({ ...f, inspiration: e.target.value }))} placeholder="某个爆款视频、热搜词或用户反馈" />

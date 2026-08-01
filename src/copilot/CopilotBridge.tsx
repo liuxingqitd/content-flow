@@ -195,6 +195,7 @@ export function CopilotBridge() {
                   title: args.title.trim(),
                   description: args.description?.trim() || undefined,
                   inspiration: args.inspiration?.trim() || undefined,
+                  creationSource: 'ai',
                   status: 'inspiration',
                   tagIds: [],
                 })

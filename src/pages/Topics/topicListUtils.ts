@@ -2,6 +2,12 @@ import type { Topic } from '@/types'
 
 export type TopicSortMode = 'default' | 'score-desc' | 'score-asc'
 
+export function getTopicCreationSourceLabel(source: Topic['creationSource']) {
+  if (source === 'ai') return 'AI'
+  if (source === 'human') return '人工'
+  return null
+}
+
 export interface PotentialScoreParseResult {
   value?: number
   error?: string

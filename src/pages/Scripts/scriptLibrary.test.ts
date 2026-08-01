@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Script } from '@/types'
 import {
-  filterScriptsBySource,
   getRecentScriptGroups,
   getScriptLastEditedAt,
   sortScriptsByLastEdited,
@@ -21,25 +20,19 @@ const script = (id: string, createdAt: string, updatedAt: string, extra: Partial
 
 describe('script library', () => {
   const scripts = [
-    script('human', '2026-01-01', '2026-07-20', { writingSource: 'human', contentUpdatedAt: '2026-04-01' }),
-    script('ai', '2026-03-01', '2026-03-01', { writingSource: 'ai' }),
-    script('unmarked', '2026-02-01', '2026-05-01'),
+    script('first', '2026-01-01', '2026-07-20', { contentUpdatedAt: '2026-04-01' }),
+    script('second', '2026-03-01', '2026-03-01'),
+    script('third', '2026-02-01', '2026-05-01'),
   ]
 
   it('uses content edits instead of metadata edits for edit recency when available', () => {
     expect(getScriptLastEditedAt(scripts[0])).toBe('2026-04-01')
-    expect(sortScriptsByLastEdited(scripts).map(item => item.id)).toEqual(['unmarked', 'human', 'ai'])
-  })
-
-  it('filters explicit sources without guessing old scripts', () => {
-    expect(filterScriptsBySource(scripts, 'ai').map(item => item.id)).toEqual(['ai'])
-    expect(filterScriptsBySource(scripts, 'human').map(item => item.id)).toEqual(['human'])
-    expect(filterScriptsBySource(scripts, 'unmarked').map(item => item.id)).toEqual(['unmarked'])
+    expect(sortScriptsByLastEdited(scripts).map(item => item.id)).toEqual(['third', 'first', 'second'])
   })
 
   it('builds independent recent-edited and recent-created groups', () => {
     const groups = getRecentScriptGroups(scripts, 2)
-    expect(groups.recentEdited.map(item => item.id)).toEqual(['unmarked', 'human'])
-    expect(groups.recentCreated.map(item => item.id)).toEqual(['ai', 'unmarked'])
+    expect(groups.recentEdited.map(item => item.id)).toEqual(['third', 'first'])
+    expect(groups.recentCreated.map(item => item.id)).toEqual(['second', 'third'])
   })
 })
