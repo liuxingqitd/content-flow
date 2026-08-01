@@ -16,6 +16,7 @@ export function deleteTopicAndDetach(data: TopicLinkedData, topicId: string, upd
 
   data.scripts.forEach(script => {
     if (script.topicId !== topicId) return
+    if (!script.contentUpdatedAt) script.contentUpdatedAt = script.updatedAt
     delete script.topicId
     script.updatedAt = updatedAt
   })

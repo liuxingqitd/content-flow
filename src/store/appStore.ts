@@ -164,6 +164,7 @@ const syncLinkedTitles = (
   }
 
   if (script && script.title !== title) {
+    if (!script.contentUpdatedAt) script.contentUpdatedAt = script.updatedAt
     script.title = title
     script.updatedAt = updatedAt
   }
@@ -557,6 +558,9 @@ export const useAppStore = create<AppState>()(
         const sc = s.data.scripts[idx]
         const updatedAt = now()
         const previousVideoId = sc.videoId
+        if (!sc.contentUpdatedAt && !Object.prototype.hasOwnProperty.call(patch, 'contentUpdatedAt')) {
+          sc.contentUpdatedAt = sc.updatedAt
+        }
         Object.assign(sc, patch, { version: sc.version + 1, updatedAt })
         if (
           typeof patch.title === 'string' ||

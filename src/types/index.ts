@@ -160,6 +160,10 @@ export interface Script {
   wordCount: number
   estimatedDuration: number
   tagIds: string[]
+  /** Explicit authorship label. Missing means the source has not been confirmed. */
+  writingSource?: 'ai' | 'human'
+  /** Last time the Markdown body changed; metadata edits must not affect edit recency. */
+  contentUpdatedAt?: string
   version: number
   createdAt: string
   updatedAt: string

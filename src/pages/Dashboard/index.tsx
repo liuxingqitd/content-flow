@@ -4,6 +4,7 @@ import { ResponsiveContainer, BarChart, Bar, AreaChart, Area, XAxis, YAxis, Cart
 import { useAppStore } from '@/store/appStore'
 import { PageContainer } from '@/components/layout/PageContainer'
 import { StatusBadge } from '@/components/StatusBadge'
+import { Select } from '@/components/ui/Select'
 import type { VideoStatus } from '@/types'
 import { VIDEO_STATUS_LABELS, VIDEO_STATUS_ORDER } from '@/types'
 import { fromNow, formatDate } from '@/utils/date'
@@ -14,10 +15,12 @@ import {
 import { buildCommercialOverview } from './dashboardCommercial'
 import { isVideoInLibrary } from '@/pages/Videos/videoWorkflow'
 import {
-  DASHBOARD_PERIOD_LABELS,
+  canSelectNextDashboardPeriod,
+  formatDashboardPeriodLabel,
   getFirstPublishedAt,
   isDateInDashboardPeriod,
   parseDashboardDate,
+  shiftDashboardPeriod,
   type DashboardPeriod,
 } from './dashboardPeriod'
 
@@ -45,6 +48,7 @@ export function Dashboard() {
   const hidePromotionCost = useAppStore(s => s.data?.settings.hidePromotionCost ?? false)
   const hideCommercialAmount = useAppStore(s => s.data?.settings.hideCommercialAmount ?? false)
   const [now, setNow] = useState(() => new Date())
+  const [selectedDate, setSelectedDate] = useState(() => new Date())
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(new Date()), 60_000)
@@ -59,11 +63,28 @@ export function Dashboard() {
     fontSize: '12px',
   }
 
-  const periodLabel = DASHBOARD_PERIOD_LABELS[dashboardPeriod]
+  const periodLabel = formatDashboardPeriodLabel(dashboardPeriod, selectedDate)
+
+  const availableYears = useMemo(() => {
+    const years = [now.getFullYear()]
+    const collect = (value?: string) => {
+      const date = parseDashboardDate(value)
+      if (date) years.push(date.getFullYear())
+    }
+    videos.forEach(video => {
+      collect(video.createdAt)
+      video.platforms.forEach(platform => collect(platform.publishedAt))
+      video.promotionRecords?.forEach(record => collect(record.spentAt))
+    })
+    topics.forEach(topic => collect(topic.createdAt))
+    scripts.forEach(script => collect(script.createdAt))
+    const firstYear = Math.min(...years)
+    return Array.from({ length: now.getFullYear() - firstYear + 1 }, (_, index) => now.getFullYear() - index)
+  }, [now, scripts, topics, videos])
 
   const periodVideos = useMemo(
-    () => videos.filter(video => isDateInDashboardPeriod(video.createdAt, dashboardPeriod, now)),
-    [videos, dashboardPeriod, now],
+    () => videos.filter(video => isDateInDashboardPeriod(video.createdAt, dashboardPeriod, selectedDate, now)),
+    [videos, dashboardPeriod, selectedDate, now],
   )
 
   const inProgress = useMemo(() =>
@@ -82,13 +103,13 @@ export function Dashboard() {
   const periodPublishedVideos = useMemo(() => videos.filter(video => {
     const firstPublishedAt = getFirstPublishedAt(video.platforms)
     return firstPublishedAt
-      ? isDateInDashboardPeriod(firstPublishedAt, dashboardPeriod, now)
+      ? isDateInDashboardPeriod(firstPublishedAt, dashboardPeriod, selectedDate, now)
       : false
-  }), [videos, dashboardPeriod, now])
+  }), [videos, dashboardPeriod, selectedDate, now])
 
   const periodPromotionCost = videos.reduce((total, video) => {
     return total + (video.promotionRecords ?? []).reduce((sum, record) => {
-      return isDateInDashboardPeriod(record.spentAt, dashboardPeriod, now)
+      return isDateInDashboardPeriod(record.spentAt, dashboardPeriod, selectedDate, now)
         ? sum + record.amount
         : sum
     }, 0)
@@ -97,11 +118,11 @@ export function Dashboard() {
   const libraryVideos = useMemo(() => videos.filter(isVideoInLibrary), [videos])
   const periodCommercialVideos = useMemo(() => libraryVideos.filter(video => {
     const commercialDate = getFirstPublishedAt(video.platforms) ?? parseDashboardDate(video.createdAt)
-    return isDateInDashboardPeriod(commercialDate, dashboardPeriod, now)
-  }), [libraryVideos, dashboardPeriod, now])
+    return isDateInDashboardPeriod(commercialDate, dashboardPeriod, selectedDate, now)
+  }), [libraryVideos, dashboardPeriod, selectedDate, now])
   const commercialTrend = useMemo(
-    () => buildDashboardCommercialTrend(libraryVideos, dashboardPeriod, now),
-    [libraryVideos, dashboardPeriod, now],
+    () => buildDashboardCommercialTrend(libraryVideos, dashboardPeriod, selectedDate, now),
+    [libraryVideos, dashboardPeriod, selectedDate, now],
   )
   const commercialOverview = useMemo(
     () => buildCommercialOverview(periodCommercialVideos),
@@ -112,10 +133,10 @@ export function Dashboard() {
 
   const pendingTopics = topics.filter(topic =>
     (topic.status === 'inspiration' || topic.status === 'adopted')
-    && isDateInDashboardPeriod(topic.createdAt, dashboardPeriod, now)
+    && isDateInDashboardPeriod(topic.createdAt, dashboardPeriod, selectedDate, now)
   )
   const periodScripts = scripts.filter(script =>
-    isDateInDashboardPeriod(script.createdAt, dashboardPeriod, now)
+    isDateInDashboardPeriod(script.createdAt, dashboardPeriod, selectedDate, now)
   )
 
   const tagDistribution = useMemo(() => {
@@ -133,8 +154,8 @@ export function Dashboard() {
   }, [periodVideos, tags])
 
   const publishTrend = useMemo(
-    () => buildDashboardPublishTrend(videos, dashboardPeriod, now),
-    [videos, dashboardPeriod, now],
+    () => buildDashboardPublishTrend(videos, dashboardPeriod, selectedDate, now),
+    [videos, dashboardPeriod, selectedDate, now],
   )
 
   const pipelineColors: Record<string, string> = {
@@ -150,8 +171,19 @@ export function Dashboard() {
   return (
     <PageContainer
       title="概览"
-      subtitle={`${formatDate(now.toISOString())} · ${periodLabel}新建 ${periodVideos.length} 条视频`}
-      actions={<PeriodSelector value={dashboardPeriod} onChange={setDashboardPeriod} />}
+      subtitle={`${periodLabel} · 新建 ${periodVideos.length} 条视频 · 数据更新于 ${formatDate(now.toISOString())}`}
+      actions={(
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <DashboardPeriodNavigator
+            period={dashboardPeriod}
+            selectedDate={selectedDate}
+            actualNow={now}
+            availableYears={availableYears}
+            onChange={setSelectedDate}
+          />
+          <PeriodSelector value={dashboardPeriod} onChange={setDashboardPeriod} />
+        </div>
+      )}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
@@ -192,11 +224,11 @@ export function Dashboard() {
         {/* Stats grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 8 }}>
           {[
-            { label: `${periodLabel}发布`, value: periodPublishedVideos.length, sub: '条视频', accent: true, path: '/videos' },
-            { label: `${periodLabel}新建`, value: periodVideos.length, sub: '条视频', accent: false, path: '/kanban' },
-            ...(hidePromotionCost ? [] : [{ label: `${periodLabel}投放成本`, value: formattedPromotionCost, sub: '平台投放', accent: false, path: '/videos' }]),
-            { label: `${periodLabel}待处理选题`, value: pendingTopics.length, sub: '个想法', accent: false, path: '/topics' },
-            { label: `${periodLabel}逐字稿`, value: periodScripts.length, sub: '篇稿件', accent: false, path: '/scripts' },
+            { label: '发布视频', value: periodPublishedVideos.length, sub: periodLabel, accent: true, path: '/videos' },
+            { label: '新建视频', value: periodVideos.length, sub: periodLabel, accent: false, path: '/kanban' },
+            ...(hidePromotionCost ? [] : [{ label: '投放成本', value: formattedPromotionCost, sub: periodLabel, accent: false, path: '/videos' }]),
+            { label: '待处理选题', value: pendingTopics.length, sub: periodLabel, accent: false, path: '/topics' },
+            { label: '逐字稿', value: periodScripts.length, sub: periodLabel, accent: false, path: '/scripts' },
           ].map(stat => (
             <button
               key={stat.label}
@@ -396,6 +428,95 @@ export function Dashboard() {
         )}
       </div>
     </PageContainer>
+  )
+}
+
+function DashboardPeriodNavigator({
+  period,
+  selectedDate,
+  actualNow,
+  availableYears,
+  onChange,
+}: {
+  period: DashboardPeriod
+  selectedDate: Date
+  actualNow: Date
+  availableYears: number[]
+  onChange: (date: Date) => void
+}) {
+  const selectedYear = selectedDate.getFullYear()
+  const selectedMonth = selectedDate.getMonth()
+  const earliestYear = Math.min(...availableYears)
+  const previousDate = shiftDashboardPeriod(period, selectedDate, -1)
+  const canSelectPrevious = previousDate.getFullYear() >= earliestYear
+  const months = Array.from(
+    { length: selectedYear === actualNow.getFullYear() ? actualNow.getMonth() + 1 : 12 },
+    (_, index) => ({ value: String(index), label: `${index + 1}月` }),
+  )
+  const move = (amount: number) => onChange(shiftDashboardPeriod(period, selectedDate, amount))
+  const changeYear = (year: number) => {
+    const month = year === actualNow.getFullYear()
+      ? Math.min(selectedMonth, actualNow.getMonth())
+      : selectedMonth
+    onChange(new Date(year, period === 'year' ? 0 : month, 1, 12))
+  }
+
+  const arrowStyle = {
+    width: 28,
+    height: 28,
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--border-subtle)',
+    background: 'var(--bg-surface)',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+    fontSize: 15,
+  } as const
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }} aria-label="选择统计时间">
+      <button
+        type="button"
+        aria-label="上一个周期"
+        onClick={() => move(-1)}
+        disabled={!canSelectPrevious}
+        style={{ ...arrowStyle, opacity: canSelectPrevious ? 1 : 0.35, cursor: canSelectPrevious ? 'pointer' : 'not-allowed' }}
+      >‹</button>
+      {period === 'week' ? (
+        <span style={{ minWidth: 150, textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+          {formatDashboardPeriodLabel(period, selectedDate)}
+        </span>
+      ) : (
+        <>
+          <Select
+            aria-label="年份"
+            value={String(selectedYear)}
+            onChange={event => changeYear(Number(event.target.value))}
+            options={availableYears.map(year => ({ value: String(year), label: `${year}年` }))}
+            style={{ width: 88, height: 28, fontSize: 12, padding: '0 8px' }}
+          />
+          {period === 'month' && (
+            <Select
+              aria-label="月份"
+              value={String(Math.min(selectedMonth, months.length - 1))}
+              onChange={event => onChange(new Date(selectedYear, Number(event.target.value), 1, 12))}
+              options={months}
+              style={{ width: 68, height: 28, fontSize: 12, padding: '0 8px' }}
+            />
+          )}
+        </>
+      )}
+      <button
+        type="button"
+        aria-label="下一个周期"
+        onClick={() => move(1)}
+        disabled={!canSelectNextDashboardPeriod(period, selectedDate, actualNow)}
+        style={{
+          ...arrowStyle,
+          opacity: canSelectNextDashboardPeriod(period, selectedDate, actualNow) ? 1 : 0.35,
+          cursor: canSelectNextDashboardPeriod(period, selectedDate, actualNow) ? 'pointer' : 'not-allowed',
+        }}
+      >›</button>
+    </div>
   )
 }
 

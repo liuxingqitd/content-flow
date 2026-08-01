@@ -1,7 +1,7 @@
 import type { Video } from '@/types'
 import { getCommercialAmountEntries } from '@/pages/Videos/commercialUtils'
 import {
-  getDashboardPeriodRange,
+  getDashboardEffectiveRange,
   getFirstPublishedAt,
   isDateInDashboardPeriod,
   parseDashboardDate,
@@ -24,9 +24,6 @@ export interface CommercialTrendPoint {
   settledAmount: number
   unsettledAmount: number
 }
-
-const startOfLocalDay = (value: Date) =>
-  new Date(value.getFullYear(), value.getMonth(), value.getDate())
 
 const addDays = (value: Date, amount: number) => {
   const result = new Date(value)
@@ -54,12 +51,18 @@ const monthLabel = (value: Date) =>
 
 const buildDashboardPeriodBuckets = (
   period: DashboardPeriod,
-  referenceDate: Date,
+  selectedDate: Date,
+  actualNow: Date,
 ): PublishTrendPoint[] => {
-  const { start, endExclusive } = getDashboardPeriodRange(period, referenceDate)
+  const { start, endExclusive } = getDashboardEffectiveRange(period, selectedDate, actualNow)
+  if (endExclusive.getTime() <= start.getTime()) return []
 
   if (period === 'year') {
-    return Array.from({ length: referenceDate.getMonth() + 1 }, (_, index) => {
+    const lastIncludedDate = new Date(endExclusive.getTime() - 1)
+    const monthCount = lastIncludedDate.getFullYear() > start.getFullYear()
+      ? 12
+      : lastIncludedDate.getMonth() + 1
+    return Array.from({ length: monthCount }, (_, index) => {
       const monthStart = new Date(start.getFullYear(), index, 1)
       return {
         key: localMonthKey(monthStart),
@@ -72,10 +75,9 @@ const buildDashboardPeriodBuckets = (
   }
 
   const points: PublishTrendPoint[] = []
-  const referenceDay = startOfLocalDay(referenceDate)
   for (
     let day = new Date(start);
-    day.getTime() < endExclusive.getTime() && day.getTime() <= referenceDay.getTime();
+    day.getTime() < endExclusive.getTime();
     day = addDays(day, 1)
   ) {
     const key = localDateKey(day)
@@ -96,14 +98,15 @@ const dashboardPeriodKey = (date: Date, period: DashboardPeriod) =>
 export function buildDashboardPublishTrend(
   videos: Video[],
   period: DashboardPeriod,
-  referenceDate = new Date(),
+  selectedDate: Date,
+  actualNow = new Date(),
 ): PublishTrendPoint[] {
-  const points = buildDashboardPeriodBuckets(period, referenceDate)
+  const points = buildDashboardPeriodBuckets(period, selectedDate, actualNow)
   const counts = new Map(points.map(point => [point.key, point]))
 
   videos.forEach(video => {
     const firstPublishedAt = getFirstPublishedAt(video.platforms)
-    if (!firstPublishedAt || !isDateInDashboardPeriod(firstPublishedAt, period, referenceDate)) return
+    if (!firstPublishedAt || !isDateInDashboardPeriod(firstPublishedAt, period, selectedDate, actualNow)) return
     const point = counts.get(dashboardPeriodKey(firstPublishedAt, period))
     if (point) point.count += 1
   })
@@ -114,9 +117,10 @@ export function buildDashboardPublishTrend(
 export function buildDashboardCommercialTrend(
   videos: Video[],
   period: DashboardPeriod,
-  referenceDate = new Date(),
+  selectedDate: Date,
+  actualNow = new Date(),
 ): CommercialTrendPoint[] {
-  const points = buildDashboardPeriodBuckets(period, referenceDate).map(point => ({
+  const points = buildDashboardPeriodBuckets(period, selectedDate, actualNow).map(point => ({
     key: point.key,
     label: point.label,
     rangeStart: point.rangeStart,
@@ -131,7 +135,7 @@ export function buildDashboardCommercialTrend(
     if (entries.length === 0) return
 
     const date = getFirstPublishedAt(video.platforms) ?? parseDashboardDate(video.createdAt)
-    if (!date || !isDateInDashboardPeriod(date, period, referenceDate)) return
+    if (!date || !isDateInDashboardPeriod(date, period, selectedDate, actualNow)) return
 
     const point = amounts.get(dashboardPeriodKey(date, period))
     if (!point) return

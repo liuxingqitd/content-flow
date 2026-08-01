@@ -54,6 +54,7 @@ describe('deleteTopicAndDetach', () => {
     expect(data.videos[0].updatedAt).toBe(updatedAt)
     expect(data.scripts[0].topicId).toBeUndefined()
     expect(data.scripts[0].updatedAt).toBe(updatedAt)
+    expect(data.scripts[0].contentUpdatedAt).toBe(timestamp)
     expect(data.videos[1].topicId).toBe('other')
     expect(data.scripts[1].topicId).toBe('other')
   })
