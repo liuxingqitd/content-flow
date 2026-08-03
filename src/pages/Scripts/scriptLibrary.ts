@@ -1,4 +1,6 @@
-import type { Script } from '@/types'
+import type { Script, Video } from '@/types'
+
+export type ScriptPublicationStatus = 'unpublished' | 'published'
 
 const timestamp = (value?: string) => {
   const parsed = value ? new Date(value).getTime() : Number.NaN
@@ -15,15 +17,16 @@ export const sortScriptsByLastEdited = (scripts: Script[]) =>
     || a.id.localeCompare(b.id),
   )
 
-export const sortScriptsByCreated = (scripts: Script[]) =>
-  [...scripts].sort((a, b) =>
-    timestamp(b.createdAt) - timestamp(a.createdAt)
-    || a.id.localeCompare(b.id),
-  )
-
-export function getRecentScriptGroups(scripts: Script[], limit = 4) {
-  return {
-    recentEdited: sortScriptsByLastEdited(scripts).slice(0, limit),
-    recentCreated: sortScriptsByCreated(scripts).slice(0, limit),
-  }
+export const isScriptPublished = (script: Script, videos: Video[]) => {
+  const linkedVideo = (script.videoId
+    ? videos.find(video => video.id === script.videoId)
+    : undefined)
+    ?? videos.find(video => video.scriptId === script.id)
+  return linkedVideo?.status === 'published'
 }
+
+export const filterScriptsByPublicationStatus = (
+  scripts: Script[],
+  videos: Video[],
+  status: ScriptPublicationStatus,
+) => scripts.filter(script => isScriptPublished(script, videos) === (status === 'published'))

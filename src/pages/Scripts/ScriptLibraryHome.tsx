@@ -2,14 +2,20 @@ import type { Script, Topic, Video } from '@/types'
 import { Input } from '@/components/ui/Input'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { fromNow, formatDuration } from '@/utils/date'
-import { getRecentScriptGroups, getScriptLastEditedAt } from './scriptLibrary'
+import {
+  filterScriptsByPublicationStatus,
+  getScriptLastEditedAt,
+  type ScriptPublicationStatus,
+} from './scriptLibrary'
 
 interface ScriptLibraryHomeProps {
   scripts: Script[]
   topics: Topic[]
   videos: Video[]
   query: string
+  publicationStatus: ScriptPublicationStatus
   onQueryChange: (query: string) => void
+  onPublicationStatusChange: (status: ScriptPublicationStatus) => void
   onSelect: (script: Script) => void
   onDelete: (id: string) => void
 }
@@ -19,13 +25,16 @@ export function ScriptLibraryHome({
   topics,
   videos,
   query,
+  publicationStatus,
   onQueryChange,
+  onPublicationStatusChange,
   onSelect,
   onDelete,
 }: ScriptLibraryHomeProps) {
-  const { recentEdited, recentCreated } = getRecentScriptGroups(scripts)
-  const recentEditedIds = new Set(recentEdited.map(script => script.id))
-  const recentCreatedIds = new Set(recentCreated.map(script => script.id))
+  const unpublishedScripts = filterScriptsByPublicationStatus(scripts, videos, 'unpublished')
+  const publishedScripts = filterScriptsByPublicationStatus(scripts, videos, 'published')
+  const visibleScripts = publicationStatus === 'unpublished' ? unpublishedScripts : publishedScripts
+  const statusLabel = publicationStatus === 'unpublished' ? '未发布' : '已发布'
   const relationTitle = (script: Script) => {
     const topic = script.topicId ? topics.find(item => item.id === script.topicId) : undefined
     return topic?.title ?? videos.find(video => video.scriptId === script.id)?.title
@@ -33,24 +42,54 @@ export function ScriptLibraryHome({
 
   return (
     <div style={{ flex: 1, minWidth: 0, width: '100%', height: '100%', overflowY: 'auto', padding: '20px 24px 36px', background: 'var(--bg-base)' }}>
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 18 }}>
         <div style={{ width: 300, maxWidth: '100%' }}>
           <Input placeholder="搜索逐字稿…" value={query} onChange={event => onQueryChange(event.target.value)} />
         </div>
       </div>
 
-      {scripts.length === 0 ? (
-        <EmptyState title="没有匹配的逐字稿" description={query ? '换个关键词试试' : '暂无稿件'} />
+      <div role="group" aria-label="逐字稿发布状态筛选" style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--border-subtle)', marginBottom: 10 }}>
+        {([
+          ['unpublished', '未发布', unpublishedScripts.length],
+          ['published', '已发布', publishedScripts.length],
+        ] as const).map(([status, label, count]) => {
+          const active = publicationStatus === status
+          return (
+            <button
+              key={status}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onPublicationStatusChange(status)}
+              style={{
+                marginBottom: -1,
+                padding: '0 1px 9px',
+                border: 'none',
+                borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+                background: 'transparent',
+                color: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                fontSize: 14,
+                fontWeight: active ? 650 : 500,
+                cursor: 'pointer',
+              }}
+            >
+              {label} <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 500, color: 'var(--text-tertiary)' }}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {visibleScripts.length === 0 ? (
+        <EmptyState
+          title={query ? `没有匹配的${statusLabel}逐字稿` : `暂无${statusLabel}逐字稿`}
+          description={query ? '换个关键词或状态试试' : publicationStatus === 'unpublished' ? '新建的逐字稿会显示在这里' : '关联视频发布后会显示在这里'}
+        />
       ) : (
         <>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div>
-              <h2 style={{ fontSize: 14, fontWeight: 650, color: 'var(--text-primary)' }}>全部逐字稿</h2>
-              <p style={{ marginTop: 2, fontSize: 11, color: 'var(--text-tertiary)' }}>按最近编辑排序 · {scripts.length} 篇</p>
-            </div>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>按最近编辑排序 · {visibleScripts.length} 篇</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-            {scripts.map(script => (
+            {visibleScripts.map(script => (
               <article
                 key={script.id}
                 onClick={() => onSelect(script)}
@@ -78,10 +117,6 @@ export function ScriptLibraryHome({
                   <span>{script.wordCount} 字 · {formatDuration(script.estimatedDuration)}</span>
                   <span>编辑于 {fromNow(getScriptLastEditedAt(script))}</span>
                 </div>
-                <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
-                  {recentEditedIds.has(script.id) && <SmallMarker label="最近编辑" color="var(--accent)" />}
-                  {recentCreatedIds.has(script.id) && <SmallMarker label="最近创建" color="var(--info)" />}
-                </div>
               </article>
             ))}
           </div>
@@ -89,8 +124,4 @@ export function ScriptLibraryHome({
       )}
     </div>
   )
-}
-
-function SmallMarker({ label, color }: { label: string; color: string }) {
-  return <span style={{ fontSize: 10.5, fontWeight: 550, color, padding: '1px 5px', border: '1px solid currentColor', borderRadius: 4 }}>{label}</span>
 }

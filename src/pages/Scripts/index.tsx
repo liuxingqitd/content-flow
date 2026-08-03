@@ -13,7 +13,7 @@ import { fromNow, formatDate } from '@/utils/date'
 import { formatDuration } from '@/utils/date'
 import { readScriptContent, writeScriptContent, deleteScriptFile } from '@/services/fileSystem'
 import { ScriptLibraryHome } from './ScriptLibraryHome'
-import { getScriptLastEditedAt, sortScriptsByLastEdited } from './scriptLibrary'
+import { getScriptLastEditedAt, sortScriptsByLastEdited, type ScriptPublicationStatus } from './scriptLibrary'
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
 
 let scriptSaveQueue: Promise<void> = Promise.resolve()
@@ -44,6 +44,7 @@ export function Scripts() {
   const deleteScript = useAppStore(s => s.deleteScript)
 
   const [searchQuery, setSearchQuery] = useState('')
+  const [publicationStatus, setPublicationStatus] = useState<ScriptPublicationStatus>('unpublished')
   const [selectedId, setSelectedId] = useState<string | null>(urlId ?? null)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleValue, setTitleValue] = useState('')
@@ -280,7 +281,9 @@ export function Scripts() {
             topics={topics}
             videos={videos}
             query={searchQuery}
+            publicationStatus={publicationStatus}
             onQueryChange={setSearchQuery}
+            onPublicationStatusChange={setPublicationStatus}
             onSelect={handleSelect}
             onDelete={setDeleteConfirm}
           />
