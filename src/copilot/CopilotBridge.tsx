@@ -185,7 +185,7 @@ export function CopilotBridge() {
         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}>待确认的新选题</div>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{args.title}</div>
         {args.description && <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{args.description}</p>}
-        {args.inspiration && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>灵感：{args.inspiration}</p>}
+        {args.inspiration && <p style={{ fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>选题来源：{args.inspiration}</p>}
         {status === 'executing' && respond && (
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <Button

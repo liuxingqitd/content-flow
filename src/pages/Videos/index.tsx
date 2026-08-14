@@ -29,7 +29,11 @@ import {
   updateVideoListTagFilter,
   type VideoPlatformFilter,
 } from './videoListFilters'
-import { getVisibleVideoTableColumns, matchesVideoListSearch } from './videoListPresentation'
+import {
+  getVisibleVideoTableColumns,
+  matchesVideoListSearch,
+  shouldShowVideoLibraryStatusBadge,
+} from './videoListPresentation'
 import { compareVideoLibraryAddedAtDesc, isVideoInLibrary } from './videoWorkflow'
 
 const PLATFORM_DISPLAY_ORDER: Platform[] = ['shipinhao', 'xiaohongshu', 'douyin']
@@ -47,13 +51,13 @@ export function Videos() {
   const displayVideos = useMemo(() => videos.filter(isVideoInLibrary), [videos])
 
   const { search, status: filterStatus, platform: filterPlatform, tagId: filterTagId, commercialOnly } = readVideoListFilters(searchParams)
+  const [searchInput, setSearchInput] = useState(search)
+  const [isSearchComposing, setIsSearchComposing] = useState(false)
+  const pendingSearchRef = useRef<string | null>(null)
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
   const [virtualWindow, setVirtualWindow] = useState({ start: 0, end: 40 })
 
-  const setFilterParam = (key: 'q' | 'status' | 'platform' | 'tag' | 'commercial', value?: string) => {
-    setSearchParams(current => updateVideoListFilter(current, key, value), { replace: true })
-  }
   const setTagFilter = (value: string) => {
     setSearchParams(current => updateVideoListTagFilter(current, value), { replace: true })
   }
@@ -70,6 +74,24 @@ export function Videos() {
     }, { replace: true })
   }
 
+  useEffect(() => {
+    if (pendingSearchRef.current === search) {
+      pendingSearchRef.current = null
+      return
+    }
+    setSearchInput(search)
+  }, [search])
+
+  useEffect(() => {
+    if (isSearchComposing || searchInput === search) return
+
+    const timer = window.setTimeout(() => {
+      pendingSearchRef.current = searchInput
+      setSearchParams(current => updateVideoListFilter(current, 'q', searchInput), { replace: true })
+    }, 200)
+    return () => window.clearTimeout(timer)
+  }, [isSearchComposing, search, searchInput, setSearchParams])
+
   const violated = displayVideos.filter(v => v.platforms.some(p => (p.status ?? 'published') === 'violated'))
 
   const filtered = useMemo(() => {
@@ -79,8 +101,8 @@ export function Videos() {
     } else if (filterStatus !== 'all') {
       list = list.filter(v => v.status === filterStatus)
     }
-    if (search.trim()) {
-      list = list.filter(video => matchesVideoListSearch(video, search, !hideCommercialAmount))
+    if (searchInput.trim()) {
+      list = list.filter(video => matchesVideoListSearch(video, searchInput, !hideCommercialAmount))
     }
     if (filterTagId !== 'all') {
       list = list.filter(v => v.tagIds.includes(filterTagId))
@@ -89,7 +111,7 @@ export function Videos() {
       list = list.filter(v => v.isCommercial)
     }
     return [...list].sort(compareVideoLibraryAddedAtDesc)
-  }, [displayVideos, filterStatus, filterPlatform, filterTagId, commercialOnly, search, hideCommercialAmount])
+  }, [displayVideos, filterStatus, filterPlatform, filterTagId, commercialOnly, searchInput, hideCommercialAmount])
 
   const updateVirtualWindow = useCallback(() => {
     const node = tableScrollRef.current
@@ -152,7 +174,17 @@ export function Videos() {
         background: 'var(--bg-surface)',
       }}>
         <div style={{ width: 248, maxWidth: '100%' }}>
-          <Input placeholder={hideCommercialAmount ? '搜索视频…' : '搜索视频或品牌方…'} value={search} onChange={e => setFilterParam('q', e.target.value)} />
+          <Input
+            type="search"
+            placeholder={hideCommercialAmount ? '搜索视频…' : '搜索视频或品牌方…'}
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            onCompositionStart={() => setIsSearchComposing(true)}
+            onCompositionEnd={e => {
+              setSearchInput(e.currentTarget.value)
+              setIsSearchComposing(false)
+            }}
+          />
         </div>
         {(tags.length > 0 || !hideCommercialAmount) && (
           <Select
@@ -264,7 +296,7 @@ export function Videos() {
                     <td style={{ padding: '10px 16px', minWidth: 0, borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <p style={{ flex: 1, minWidth: 0, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>{video.title}</p>
-                        <StatusBadge status={video.status} />
+                        {shouldShowVideoLibraryStatusBadge(video.status) && <StatusBadge status={video.status} />}
                       </div>
                       {video.description && (
                         <p style={{ fontSize: 11, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{video.description}</p>

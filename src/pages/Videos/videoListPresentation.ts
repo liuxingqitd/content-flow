@@ -34,3 +34,7 @@ export function matchesVideoListSearch(
   return video.title.toLowerCase().includes(query)
     || (showCommercialInfo && Boolean(video.commercialBrandName?.toLowerCase().includes(query)))
 }
+
+export function shouldShowVideoLibraryStatusBadge(status: Video['status']) {
+  return status !== 'published'
+}

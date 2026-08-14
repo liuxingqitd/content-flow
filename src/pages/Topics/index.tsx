@@ -11,6 +11,9 @@ import type { Topic, TopicStatus } from '@/types'
 import { TOPIC_STATUS_LABELS, VIDEO_STATUS_LABELS } from '@/types'
 import { fromNow } from '@/utils/date'
 import { getTopicCreationSourceLabel, parsePotentialScore, sortTopics, type TopicSortMode } from './topicListUtils'
+import { deleteCoverImage, deleteScriptFile } from '@/services/fileSystem'
+import { invalidateCoverThumbnailCache } from '@/services/coverThumbnailCache'
+import { getTopicCascadeDeletion } from '@/store/topicData'
 
 const STATUS_COLORS: Record<TopicStatus, string> = {
   inspiration: 'var(--status-topic, var(--status-topic-text))',
@@ -36,6 +39,7 @@ const STATUS_BORDER: Record<TopicStatus, string> = {
 export function Topics() {
   const navigate = useNavigate()
   const topics = useAppStore(s => s.data?.topics ?? [])
+  const data = useAppStore(s => s.data)
   const addTopic = useAppStore(s => s.addTopic)
   const updateTopic = useAppStore(s => s.updateTopic)
   const deleteTopic = useAppStore(s => s.deleteTopic)
@@ -67,6 +71,11 @@ export function Topics() {
     const byStatus = filterStatus === 'all' ? topics : topics.filter(t => t.status === filterStatus)
     return sortTopics(byStatus, sortMode)
   }, [topics, filterStatus, sortMode])
+  const pendingDeletion = useMemo(
+    () => deleteConfirm && data ? getTopicCascadeDeletion(data, deleteConfirm.id) : null,
+    [data, deleteConfirm],
+  )
+  const hasLinkedContent = Boolean(pendingDeletion?.videos.length || pendingDeletion?.scripts.length)
 
   const parsedPotentialScore = parsePotentialScore(form.potentialScore)
 
@@ -123,8 +132,19 @@ export function Topics() {
     setTimeout(() => setAdoptedToast(null), 3000)
   }
 
-  const handleDeleteConfirm = () => {
-    if (!deleteConfirm) return
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm || !data) return
+    const deletion = getTopicCascadeDeletion(data, deleteConfirm.id)
+    if (!deletion) return
+
+    await Promise.all([
+      ...deletion.scripts.map(script => deleteScriptFile(script.id)),
+      ...deletion.videos.flatMap(video => [
+        ...(video.coverPortrait ? [deleteCoverImage(video.id, 'portrait', video.coverPortrait)] : []),
+        ...(video.coverLandscape ? [deleteCoverImage(video.id, 'landscape', video.coverLandscape)] : []),
+      ]),
+    ])
+    deletion.videos.forEach(video => invalidateCoverThumbnailCache(video.id))
     deleteTopic(deleteConfirm.id)
     setDeleteConfirm(null)
   }
@@ -176,7 +196,7 @@ export function Topics() {
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
-          新建灵感
+          新建选题
         </Button>
       }
     >
@@ -239,7 +259,7 @@ export function Topics() {
       {filtered.length === 0 ? (
         <EmptyState
           title="暂无选题"
-          action={<Button variant="primary" size="sm" onClick={openNew}>新建灵感</Button>}
+          action={<Button variant="primary" size="sm" onClick={openNew}>新建选题</Button>}
         />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 8 }}>
@@ -543,7 +563,7 @@ export function Topics() {
       <Modal
         open={!!modal}
         onClose={() => setModal(null)}
-        title={modal?.mode === 'new' ? '新建灵感' : '编辑选题'}
+        title={modal?.mode === 'new' ? '新建选题' : '编辑选题'}
         size="lg"
         footer={
           <>
@@ -576,7 +596,7 @@ export function Topics() {
             ]}
           />
           <Textarea label="角度描述" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="这个选题的独特角度或核心卖点" />
-          <Input label="灵感来源" value={form.inspiration} onChange={e => setForm(f => ({ ...f, inspiration: e.target.value }))} placeholder="某个爆款视频、热搜词或用户反馈" />
+          <Input label="选题来源" value={form.inspiration} onChange={e => setForm(f => ({ ...f, inspiration: e.target.value }))} placeholder="某个爆款视频、热搜词或用户反馈" />
         </div>
       </Modal>
 
@@ -594,9 +614,9 @@ export function Topics() {
         }
       >
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          {deleteConfirm && (videos.some(v => v.topicId === deleteConfirm.id) || scripts.some(s => s.topicId === deleteConfirm.id)) ? (
+          {hasLinkedContent ? (
             <>
-              确认删除选题「<strong style={{ color: 'var(--text-primary)' }}>{deleteConfirm.title}</strong>」？关联的视频和逐字稿会保留，但会解除与该选题的关联。此操作不可撤销。
+              确认删除选题「<strong style={{ color: 'var(--text-primary)' }}>{deleteConfirm?.title}</strong>」？关联的视频和逐字稿也将一并删除。此操作不可撤销。
             </>
           ) : (
             <>

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getVisibleVideoTableColumns, matchesVideoListSearch } from './videoListPresentation'
+import {
+  getVisibleVideoTableColumns,
+  matchesVideoListSearch,
+  shouldShowVideoLibraryStatusBadge,
+} from './videoListPresentation'
 
 describe('video list presentation privacy', () => {
   it('removes every commercial column when commercial info is hidden', () => {
@@ -25,5 +29,11 @@ describe('video list presentation privacy', () => {
     expect(matchesVideoListSearch(video, '保密品牌', true)).toBe(true)
     expect(matchesVideoListSearch(video, '保密品牌', false)).toBe(false)
     expect(matchesVideoListSearch(video, '普通', false)).toBe(true)
+  })
+
+  it('hides only the redundant published status badge in the video library', () => {
+    expect(shouldShowVideoLibraryStatusBadge('published')).toBe(false)
+    expect(shouldShowVideoLibraryStatusBadge('pending_publish')).toBe(true)
+    expect(shouldShowVideoLibraryStatusBadge('archived')).toBe(true)
   })
 })

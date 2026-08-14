@@ -4,7 +4,7 @@ import type { AppData, Video, Topic, Script, Tag, VideoMetrics, AppSettings, Vid
 import { now } from '@/utils/date'
 import { videoId, topicId, scriptId, tagId, metricId, checklistItemId, videoRelationId, promotionRecordId } from '@/utils/id'
 import { readAppData, writeAppData } from '@/services/fileSystem'
-import { deleteTopicAndDetach } from './topicData'
+import { deleteTopicAndDetach, deleteTopicWithLinkedContent } from './topicData'
 import { canMoveVideoToStatus, getVideoLibraryAddedAt } from '@/pages/Videos/videoWorkflow'
 
 interface AppState {
@@ -443,7 +443,7 @@ export const useAppStore = create<AppState>()(
     deleteTopic: (id) => {
       set(s => {
         if (!s.data) return
-        deleteTopicAndDetach(s.data, id, now())
+        deleteTopicWithLinkedContent(s.data, id)
       })
       scheduleSave(get)
     },

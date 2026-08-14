@@ -68,6 +68,7 @@ export interface PlatformPublish {
 export type ShootingFormat =
   | 'landscape'
   | 'portrait'
+  | 'image_text'
   | 'talking'
   | 'demo'
   | 'talking_demo'
@@ -78,6 +79,7 @@ export type ShootingFormat =
 export const SHOOTING_FORMAT_LABELS: Record<ShootingFormat, string> = {
   landscape:            '横屏',
   portrait:             '竖屏',
+  image_text:           '图文',
   talking:              '口播',
   demo:                 '演示',
   talking_demo:         '口播+演示',
@@ -87,7 +89,7 @@ export const SHOOTING_FORMAT_LABELS: Record<ShootingFormat, string> = {
 }
 
 export const ALL_SHOOTING_FORMATS: ShootingFormat[] = [
-  'landscape', 'portrait', 'talking', 'demo', 'talking_demo',
+  'landscape', 'portrait', 'image_text', 'talking', 'demo', 'talking_demo',
   'walking_shot', 'electronic_whiteboard', 'whiteboard',
 ]
 
@@ -294,7 +296,7 @@ export const VIDEO_STATUS_ORDER: VideoStatus[] = [
 ]
 
 export const TOPIC_STATUS_LABELS: Record<TopicStatus, string> = {
-  inspiration: '灵感',
+  inspiration: '选题',
   adopted: '已采纳',
   in_progress: '制作中',
   done: '已完成',
