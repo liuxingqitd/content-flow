@@ -38,7 +38,7 @@ npm run docker:clean     # 停止并清理数据卷
 所有数据存储在**用户本地文件系统**，通过 Web FileSystem API 读写，IndexedDB 持久化目录句柄（避免每次刷新重新授权）。
 
 - `src/services/fileSystem.ts` — 目录句柄管理、文件读写、数据迁移
-- 数据文件：`data.json`（所有结构化数据）+ `scripts/<id>.md`（逐字稿内容）
+- 数据文件：结构化 JSON + `scripts/<标题>--<短ID>.md`（完整 ID 存在 frontmatter）
 - 首次使用需用户在 `DirectorySetup` 页面授权目录访问权限
 - `loadData()` 包含版本迁移逻辑，自动补全缺失字段、迁移旧状态值
 

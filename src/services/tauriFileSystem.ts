@@ -76,6 +76,14 @@ export async function deleteTauriFile(handle: TauriDirectoryHandle, relativePath
   await invoke('delete_file', { root: handle.path, relativePath })
 }
 
+export async function renameTauriFile(
+  handle: TauriDirectoryHandle,
+  fromRelativePath: string,
+  toRelativePath: string,
+): Promise<void> {
+  await invoke('rename_file', { root: handle.path, fromRelativePath, toRelativePath })
+}
+
 export async function listTauriMarkdownFiles(
   handle: TauriDirectoryHandle,
   relativeDir: string,

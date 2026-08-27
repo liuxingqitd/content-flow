@@ -138,7 +138,7 @@ export function Topics() {
     if (!deletion) return
 
     await Promise.all([
-      ...deletion.scripts.map(script => deleteScriptFile(script.id)),
+      ...deletion.scripts.map(script => deleteScriptFile(script)),
       ...deletion.videos.flatMap(video => [
         ...(video.coverPortrait ? [deleteCoverImage(video.id, 'portrait', video.coverPortrait)] : []),
         ...(video.coverLandscape ? [deleteCoverImage(video.id, 'landscape', video.coverLandscape)] : []),

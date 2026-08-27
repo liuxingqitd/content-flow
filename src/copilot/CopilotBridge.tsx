@@ -103,9 +103,9 @@ export function CopilotBridge() {
       if (!data) return { error: '数据尚未加载' }
       const scriptId = resolveCurrentScriptId(location.pathname, data)
       if (!scriptId) return { error: '当前页面没有关联逐字稿' }
-      const content = await readScriptContent(scriptId)
-      if (!content.trim()) return { error: '当前逐字稿正文文件不存在或为空', scriptId }
       const script = data.scripts.find(item => item.id === scriptId)
+      const content = await readScriptContent(script ?? scriptId)
+      if (!content.trim()) return { error: '当前逐字稿正文文件不存在或为空', scriptId }
       return { scriptId, title: script?.title ?? pageContext?.focusedEntity?.title ?? scriptId, content }
     },
   }, [data, location.pathname, pageContext])
@@ -127,7 +127,7 @@ export function CopilotBridge() {
     parameters: z.object({ scriptId: z.string().regex(/^script_[A-Za-z0-9_-]+$/) }),
     handler: async ({ scriptId }) => {
       const script = data?.scripts.find(item => item.id === scriptId)
-      const content = await readScriptContent(scriptId)
+      const content = await readScriptContent(script ?? scriptId)
       if (!content.trim()) return { error: '逐字稿正文文件不存在或为空', scriptId }
       const markdownTitle = content.match(/^#\s+(.+)$/m)?.[1]?.trim()
       return { id: scriptId, title: script?.title ?? markdownTitle ?? scriptId, content }

@@ -11,7 +11,7 @@ import { ScriptEditor } from './ScriptEditor'
 import type { Script } from '@/types'
 import { fromNow, formatDate } from '@/utils/date'
 import { formatDuration } from '@/utils/date'
-import { readScriptContent, writeScriptContent, deleteScriptFile } from '@/services/fileSystem'
+import { readScriptContent, writeScriptContent, deleteScriptFile, renameScriptFileToTitle } from '@/services/fileSystem'
 import { ScriptLibraryHome } from './ScriptLibraryHome'
 import { getScriptLastEditedAt, sortScriptsByLastEdited, type ScriptPublicationStatus } from './scriptLibrary'
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
@@ -20,9 +20,11 @@ let scriptSaveQueue: Promise<void> = Promise.resolve()
 
 const persistScriptContent = (id: string, content: string) => {
   const save = scriptSaveQueue.then(async () => {
-    await writeScriptContent(id, content)
+    const script = useAppStore.getState().data?.scripts.find(item => item.id === id)
+    const fileName = await writeScriptContent(script ?? id, content)
     const wordCount = content.replace(/\s+/g, '').length
     useAppStore.getState().updateScript(id, {
+      ...(script?.fileName !== fileName ? { fileName } : {}),
       wordCount,
       estimatedDuration: Math.round(wordCount / 3.5),
       contentUpdatedAt: new Date().toISOString(),
@@ -55,6 +57,7 @@ export function Scripts() {
   const [newTitle, setNewTitle] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')
+  const [renamingFile, setRenamingFile] = useState(false)
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -76,10 +79,6 @@ export function Scripts() {
   const selectedScript = scripts.find(s => s.id === selectedId)
 
   useEffect(() => {
-    setSelectedId(urlId ?? null)
-  }, [urlId])
-
-  useEffect(() => {
     let cancelled = false
     const loadContent = async () => {
       if (!selectedId) {
@@ -90,7 +89,8 @@ export function Scripts() {
       setLoadingContent(true)
       setSaveState('idle')
       await scriptSaveQueue
-      const content = await readScriptContent(selectedId)
+      const script = useAppStore.getState().data?.scripts.find(item => item.id === selectedId)
+      const content = await readScriptContent(script ?? selectedId)
       if (cancelled) return
       setEditorContent(content)
       setLoadingContent(false)
@@ -201,7 +201,8 @@ export function Scripts() {
       }
     }
     await scriptSaveQueue
-    await deleteScriptFile(id)
+    const script = scripts.find(item => item.id === id)
+    await deleteScriptFile(script ?? id)
     deleteScript(id)
     if (selectedId === id) {
       setSelectedId(null)
@@ -242,6 +243,21 @@ export function Scripts() {
       updateScript(selectedScript.id, { title: titleValue.trim() })
     }
     setEditingTitle(false)
+  }
+
+  const handleSyncFileName = async () => {
+    if (!selectedScript || renamingFile) return
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    const pending = pendingRef.current
+    setRenamingFile(true)
+    try {
+      if (pending) await doSave(pending.id, pending.content)
+      else await scriptSaveQueue
+      const fileName = await renameScriptFileToTitle(selectedScript)
+      if (fileName !== selectedScript.fileName) updateScript(selectedScript.id, { fileName })
+    } finally {
+      setRenamingFile(false)
+    }
   }
 
   const saveLabel =
@@ -431,6 +447,20 @@ export function Scripts() {
                       {saveLabel}
                     </span>
                   )}
+
+                  <button
+                    onClick={() => void handleSyncFileName()}
+                    disabled={renamingFile || !editorContent}
+                    title={selectedScript.fileName ? `当前文件：${selectedScript.fileName}` : '将文件名同步为当前标题'}
+                    style={{
+                      padding: '5px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)',
+                      background: 'transparent', color: 'var(--text-tertiary)', fontSize: 12,
+                      cursor: renamingFile || !editorContent ? 'not-allowed' : 'pointer',
+                      opacity: renamingFile || !editorContent ? 0.4 : 1,
+                    }}
+                  >
+                    {renamingFile ? '重命名中…' : '同步文件名'}
+                  </button>
 
                   <button
                     onClick={handleCopy}

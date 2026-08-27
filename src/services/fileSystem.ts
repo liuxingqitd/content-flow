@@ -12,11 +12,20 @@ import {
   readTauriBytes,
   readTauriText,
   readTauriCoverThumbnail,
+  renameTauriFile,
   tauriFileSystemAvailable,
   type TauriDirectoryHandle,
   writeTauriBytes,
   writeTauriText,
 } from './tauriFileSystem'
+import {
+  createReadableScriptFileName,
+  ensureScriptMetadata,
+  inferReadableTitle,
+  inferScriptIdFromLegacyFileName,
+  parseScriptMarkdown,
+  replaceScriptBody,
+} from './scriptMarkdown'
 
 const DOUYIN_SEED: Omit<DouyinRawRecord, 'id' | 'createdAt'>[] = [
   { title: '每天花一小时玩AI，比你报千元课都管用', publishedAt: '2026-05-18 18:49:34', genre: '1-3min视频', status: '公开', plays: 1500, completionRate: 0.031092, fiveSecRate: 0.416063, coverCtr: '-', twoSecBounceRate: 0.347597, avgPlayDuration: 13.551408, likes: 34, shares: 1, comments: 1, saves: 5, profileVisits: 4, followerGain: 4 },
@@ -349,7 +358,7 @@ async function writeSplitAppData(dir: FileSystemDirectoryHandle, data: AppData):
     writeSingleFile(dir, 'xiaohongshuRecords.json', data.xiaohongshuRecords),
   ])
   // version 文件留存供将来使用
-  await writeSingleFile(dir, 'version.json', { version: data.version ?? '1.1' })
+  await writeSingleFile(dir, 'version.json', { version: data.version ?? '1.2' })
 }
 
 async function writeTauriSplitAppData(dir: TauriDirectoryHandle, data: AppData): Promise<void> {
@@ -369,7 +378,7 @@ async function writeTauriSplitAppData(dir: TauriDirectoryHandle, data: AppData):
     writeTauriJsonFile(dir, 'shipinhaoRecords.json', data.shipinhaoRecords),
     writeTauriJsonFile(dir, 'xiaohongshuRecords.json', data.xiaohongshuRecords),
   ])
-  await writeTauriJsonFile(dir, 'version.json', { version: data.version ?? '1.1' })
+  await writeTauriJsonFile(dir, 'version.json', { version: data.version ?? '1.2' })
 }
 
 async function readSplitAppData(dir: FileSystemDirectoryHandle): Promise<AppData> {
@@ -534,8 +543,6 @@ export async function readAppData(): Promise<AppData> {
     const imported = await buildInitialDataFromDirectory(dir)
     if (imported.videos.length > 0) {
       data = { ...data, videos: imported.videos, videoRelations: data.videoRelations ?? [], scripts: imported.scripts }
-      await writeAppData(data)
-      return data
     }
   }
 
@@ -543,6 +550,7 @@ export async function readAppData(): Promise<AppData> {
 
   if (migratePlatformPublishingData(data)) changed = true
   if (migrateVideoLibraryRecords(data)) changed = true
+  if (await migrateScriptMarkdownFiles(dir, data)) changed = true
 
   // One-time migration: add video relations collection for existing installations
   if (!data.videoRelations) {
@@ -651,8 +659,6 @@ async function readTauriAppData(dir: TauriDirectoryHandle): Promise<AppData> {
     const imported = await buildInitialDataFromTauriDirectory(dir)
     if (imported.videos.length > 0) {
       data = { ...data, videos: imported.videos, videoRelations: data.videoRelations ?? [], scripts: imported.scripts }
-      await writeAppData(data)
-      return data
     }
   }
 
@@ -660,6 +666,7 @@ async function readTauriAppData(dir: TauriDirectoryHandle): Promise<AppData> {
 
   if (migratePlatformPublishingData(data)) changed = true
   if (migrateVideoLibraryRecords(data)) changed = true
+  if (await migrateScriptMarkdownFiles(dir, data)) changed = true
 
   if (!data.videoRelations) {
     data.videoRelations = []
@@ -839,17 +846,19 @@ async function importMarkdownScripts(
   for await (const handle of asIterableDirectory(scriptsDir).values()) {
     if (handle.kind !== 'file' || !handle.name.endsWith('.md')) continue
     const scriptHandle = handle as FileSystemFileHandle
-    const id = handle.name.replace(/\.md$/, '')
-    if (id.startsWith('script_demo')) continue
     const file = await scriptHandle.getFile()
     const content = await file.text()
-    const title = extractMarkdownTitle(content, id)
-    const wordCount = countScriptWords(content)
+    const parsed = parseScriptMarkdown(content)
+    const id = parsed.scriptId ?? inferScriptIdFromLegacyFileName(handle.name)
+    if (!id || id.startsWith('script_demo')) continue
+    const title = extractMarkdownTitle(parsed.body, id)
+    const wordCount = countScriptWords(parsed.body)
     const videoIdForScript = `vid_${id.replace(/^script_/, '')}`
     const createdAt = file.lastModified ? new Date(file.lastModified).toISOString() : nowIso
 
     scripts.push({
       id,
+      fileName: handle.name,
       videoId: videoIdForScript,
       title,
       wordCount,
@@ -894,17 +903,19 @@ async function importTauriMarkdownScripts(
 
   for (const file of files) {
     if (!file.name.endsWith('.md')) continue
-    const id = file.name.replace(/\.md$/, '')
-    if (id.startsWith('script_demo')) continue
     const content = file.content
-    const title = extractMarkdownTitle(content, id)
-    const wordCount = countScriptWords(content)
+    const parsed = parseScriptMarkdown(content)
+    const id = parsed.scriptId ?? inferScriptIdFromLegacyFileName(file.name)
+    if (!id || id.startsWith('script_demo')) continue
+    const title = extractMarkdownTitle(parsed.body, id)
+    const wordCount = countScriptWords(parsed.body)
     const videoIdForScript = `vid_${id.replace(/^script_/, '')}`
     const timestamp = Number(file.updated_at)
     const createdAt = timestamp > 0 ? new Date(timestamp).toISOString() : nowIso
 
     scripts.push({
       id,
+      fileName: file.name,
       videoId: videoIdForScript,
       title,
       wordCount,
@@ -994,26 +1005,209 @@ export async function writeAppData(data: AppData): Promise<void> {
   await writeSplitAppData(dir, data)
 }
 
-// ===== scripts/<id>.md read / write =====
+// ===== scripts/*.md identity-aware read / write =====
 
 async function getScriptsDir(dir: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
   return dir.getDirectoryHandle('scripts', { create: true })
 }
 
-export async function readScriptContent(scriptId: string): Promise<string> {
+interface StoredScriptFile {
+  name: string
+  content: string
+  updatedAt: string
+}
+
+export type ScriptFileReference = string | Pick<Script, 'id' | 'title' | 'fileName'>
+
+const normalizeScriptReference = (reference: ScriptFileReference) =>
+  typeof reference === 'string' ? { id: reference, title: reference, fileName: undefined } : reference
+
+async function listStoredScriptFiles(dir: DataDirectoryHandle): Promise<StoredScriptFile[]> {
+  if (isTauriDirectoryHandle(dir)) {
+    const files = await listTauriMarkdownFiles(dir, 'scripts')
+    return files.map(file => ({
+      name: file.name,
+      content: file.content,
+      updatedAt: Number(file.updated_at) > 0 ? new Date(Number(file.updated_at)).toISOString() : new Date().toISOString(),
+    }))
+  }
+
+  const scriptsDir = await getScriptsDir(dir)
+  const files: StoredScriptFile[] = []
+  for await (const handle of asIterableDirectory(scriptsDir).values()) {
+    if (handle.kind !== 'file' || !handle.name.endsWith('.md')) continue
+    const file = await (handle as FileSystemFileHandle).getFile()
+    files.push({
+      name: handle.name,
+      content: await file.text(),
+      updatedAt: new Date(file.lastModified).toISOString(),
+    })
+  }
+  return files
+}
+
+async function writeWebTextFile(directory: FileSystemDirectoryHandle, name: string, content: string): Promise<void> {
+  const handle = await directory.getFileHandle(name, { create: true })
+  const writable = await asWritableFile(handle).createWritable()
+  try {
+    await writable.write(content)
+    await writable.close()
+  } catch (error) {
+    await writable.abort?.()
+    throw error
+  }
+}
+
+async function writeStoredScriptFile(dir: DataDirectoryHandle, name: string, content: string): Promise<void> {
+  if (isTauriDirectoryHandle(dir)) {
+    await writeTauriText(dir, `scripts/${name}`, content)
+    return
+  }
+  await writeWebTextFile(await getScriptsDir(dir), name, content)
+}
+
+async function deleteStoredScriptFile(dir: DataDirectoryHandle, name: string): Promise<void> {
+  if (isTauriDirectoryHandle(dir)) {
+    await deleteTauriFile(dir, `scripts/${name}`)
+    return
+  }
+  await asIterableDirectory(await getScriptsDir(dir)).removeEntry(name)
+}
+
+async function webFileExists(directory: FileSystemDirectoryHandle, name: string): Promise<boolean> {
+  try {
+    await directory.getFileHandle(name, { create: false })
+    return true
+  } catch (error) {
+    if (isNotFoundError(error)) return false
+    throw error
+  }
+}
+
+async function renameStoredScriptFile(dir: DataDirectoryHandle, from: string, to: string): Promise<void> {
+  if (from === to) return
+  if (isTauriDirectoryHandle(dir)) {
+    await renameTauriFile(dir, `scripts/${from}`, `scripts/${to}`)
+    return
+  }
+
+  const scriptsDir = await getScriptsDir(dir)
+  if (await webFileExists(scriptsDir, to)) throw new Error(`目标逐字稿文件已存在：${to}`)
+  const sourceHandle = await scriptsDir.getFileHandle(from, { create: false })
+  const source = await (await sourceHandle.getFile()).text()
+  let targetCreated = false
+  try {
+    await writeWebTextFile(scriptsDir, to, source)
+    targetCreated = true
+    const verified = await (await scriptsDir.getFileHandle(to, { create: false })).getFile()
+    if (await verified.text() !== source) throw new Error(`逐字稿重命名校验失败：${to}`)
+    await asIterableDirectory(scriptsDir).removeEntry(from)
+  } catch (error) {
+    if (targetCreated && await webFileExists(scriptsDir, from)) {
+      try { await asIterableDirectory(scriptsDir).removeEntry(to) } catch { /* keep source as recovery copy */ }
+    }
+    throw error
+  }
+}
+
+async function backupStoredScriptFile(dir: DataDirectoryHandle, name: string, content: string): Promise<void> {
+  const backupPath = `.contentflow-backups/script-filenames-v1/${name}`
+  if (isTauriDirectoryHandle(dir)) {
+    if (await readTauriText(dir, backupPath) === null) await writeTauriText(dir, backupPath, content)
+    return
+  }
+  const backups = await dir.getDirectoryHandle('.contentflow-backups', { create: true })
+  const migration = await backups.getDirectoryHandle('script-filenames-v1', { create: true })
+  if (!await webFileExists(migration, name)) await writeWebTextFile(migration, name, content)
+}
+
+function storedScriptId(file: StoredScriptFile): string | undefined {
+  return parseScriptMarkdown(file.content).scriptId ?? inferScriptIdFromLegacyFileName(file.name)
+}
+
+async function resolveStoredScriptFile(
+  dir: DataDirectoryHandle,
+  reference: ScriptFileReference,
+): Promise<StoredScriptFile | undefined> {
+  const script = normalizeScriptReference(reference)
+  const files = await listStoredScriptFiles(dir)
+  const matches = files.filter(file => storedScriptId(file) === script.id)
+  if (matches.length > 1) {
+    throw new Error(`逐字稿 ID ${script.id} 对应多个文件：${matches.map(file => file.name).join('、')}`)
+  }
+  if (matches.length === 0) return undefined
+  const cached = script.fileName ? matches.find(file => file.name === script.fileName) : undefined
+  return cached ?? matches[0]
+}
+
+async function migrateScriptMarkdownFiles(dir: DataDirectoryHandle, data: AppData): Promise<boolean> {
+  const files = await listStoredScriptFiles(dir)
+  const filesById = new Map<string, StoredScriptFile[]>()
+  for (const file of files) {
+    const id = storedScriptId(file)
+    if (!id) continue
+    const matches = filesById.get(id) ?? []
+    matches.push(file)
+    filesById.set(id, matches)
+  }
+  for (const [id, matches] of filesById) {
+    if (matches.length > 1) {
+      throw new Error(`逐字稿迁移发现重复 ID ${id}：${matches.map(file => file.name).join('、')}`)
+    }
+  }
+
+  let changed = false
+  const occupied = new Set(files.map(file => file.name))
+  const indexedIds = new Set(data.scripts.map(script => script.id))
+
+  const migrateOne = async (id: string, title: string, indexedScript?: Script) => {
+    const file = filesById.get(id)?.[0]
+    if (!file) return
+    const legacy = inferScriptIdFromLegacyFileName(file.name) === id
+    let nextContent = ensureScriptMetadata(file.content, id)
+    let nextName = file.name
+
+    if (legacy) {
+      occupied.delete(file.name)
+      nextName = createReadableScriptFileName(title, id, occupied)
+      occupied.add(nextName)
+    }
+
+    if (nextContent !== file.content || nextName !== file.name) {
+      await backupStoredScriptFile(dir, file.name, file.content)
+    }
+    if (nextContent !== file.content) {
+      await writeStoredScriptFile(dir, file.name, nextContent)
+    }
+    if (nextName !== file.name) {
+      await renameStoredScriptFile(dir, file.name, nextName)
+      nextContent = ensureScriptMetadata(nextContent, id)
+    }
+    if (indexedScript?.fileName !== nextName) {
+      if (indexedScript) indexedScript.fileName = nextName
+      changed = true
+    }
+    if (nextContent !== file.content || nextName !== file.name) changed = true
+  }
+
+  for (const script of data.scripts) await migrateOne(script.id, script.title, script)
+  for (const [id, matches] of filesById) {
+    if (indexedIds.has(id)) continue
+    await migrateOne(id, inferReadableTitle(matches[0].content))
+  }
+
+  if (data.version !== '1.2') {
+    data.version = '1.2'
+    changed = true
+  }
+  return changed
+}
+
+export async function readScriptContent(reference: ScriptFileReference): Promise<string> {
   const dir = await getDirectoryHandle()
   if (!dir) return ''
-  if (isTauriDirectoryHandle(dir)) {
-    return (await readTauriText(dir, `scripts/${scriptId}.md`)) ?? ''
-  }
-  try {
-    const scriptsDir = await getScriptsDir(dir)
-    const fileHandle = await scriptsDir.getFileHandle(`${scriptId}.md`, { create: false })
-    const file = await fileHandle.getFile()
-    return file.text()
-  } catch {
-    return ''
-  }
+  const file = await resolveStoredScriptFile(dir, reference)
+  return file ? parseScriptMarkdown(file.content).body : ''
 }
 
 export interface ScriptMarkdownDocument {
@@ -1026,65 +1220,53 @@ export async function listScriptMarkdownDocuments(): Promise<ScriptMarkdownDocum
   const dir = await getDirectoryHandle()
   if (!dir) return []
 
-  if (isTauriDirectoryHandle(dir)) {
-    const files = await listTauriMarkdownFiles(dir, 'scripts')
-    return files.map(file => ({
-      scriptId: file.name.replace(/\.md$/, ''),
-      content: file.content,
-      updatedAt: Number(file.updated_at) > 0 ? new Date(Number(file.updated_at)).toISOString() : new Date().toISOString(),
-    }))
-  }
-
-  try {
-    const scriptsDir = await getScriptsDir(dir)
-    const documents: ScriptMarkdownDocument[] = []
-    for await (const handle of asIterableDirectory(scriptsDir).values()) {
-      if (handle.kind !== 'file' || !handle.name.endsWith('.md')) continue
-      const file = await (handle as FileSystemFileHandle).getFile()
-      documents.push({
-        scriptId: handle.name.replace(/\.md$/, ''),
-        content: await file.text(),
-        updatedAt: new Date(file.lastModified).toISOString(),
-      })
-    }
-    return documents
-  } catch {
-    return []
-  }
+  const files = await listStoredScriptFiles(dir)
+  return files.flatMap(file => {
+    const scriptId = storedScriptId(file)
+    if (!scriptId) return []
+    return [{
+      scriptId,
+      content: parseScriptMarkdown(file.content).body,
+      updatedAt: file.updatedAt,
+    }]
+  })
 }
 
-export async function writeScriptContent(scriptId: string, content: string): Promise<void> {
+export async function writeScriptContent(reference: ScriptFileReference, content: string): Promise<string> {
   const dir = await getDirectoryHandle()
   if (!dir) throw new Error('NO_DIRECTORY')
-  if (isTauriDirectoryHandle(dir)) {
-    await writeTauriText(dir, `scripts/${scriptId}.md`, content)
-    return
+  const script = normalizeScriptReference(reference)
+  const existing = await resolveStoredScriptFile(dir, script)
+  if (existing) {
+    await writeStoredScriptFile(dir, existing.name, replaceScriptBody(existing.content, script.id, content))
+    return existing.name
   }
-  const scriptsDir = await getScriptsDir(dir)
-  const fileHandle = await scriptsDir.getFileHandle(`${scriptId}.md`, { create: true })
-  const writable = await asWritableFile(fileHandle).createWritable()
-  try {
-    await writable.write(content)
-    await writable.close()
-  } catch (e) {
-    await writable.abort?.()
-    throw e
-  }
+  const fileName = createReadableScriptFileName(script.title, script.id, (await listStoredScriptFiles(dir)).map(file => file.name))
+  await writeStoredScriptFile(dir, fileName, replaceScriptBody(null, script.id, content))
+  return fileName
 }
 
-export async function deleteScriptFile(scriptId: string): Promise<void> {
+export async function renameScriptFileToTitle(reference: Pick<Script, 'id' | 'title' | 'fileName'>): Promise<string> {
+  const dir = await getDirectoryHandle()
+  if (!dir) throw new Error('NO_DIRECTORY')
+  const existing = await resolveStoredScriptFile(dir, reference)
+  if (!existing) throw new Error('逐字稿正文文件不存在')
+  const occupied = (await listStoredScriptFiles(dir)).filter(file => file.name !== existing.name).map(file => file.name)
+  const nextName = createReadableScriptFileName(reference.title, reference.id, occupied)
+  if (nextName === existing.name) return existing.name
+  const previousName = existing.name.replace(/\.md$/, '')
+  const withAlias = ensureScriptMetadata(existing.content, reference.id, previousName)
+  await backupStoredScriptFile(dir, existing.name, existing.content)
+  if (withAlias !== existing.content) await writeStoredScriptFile(dir, existing.name, withAlias)
+  await renameStoredScriptFile(dir, existing.name, nextName)
+  return nextName
+}
+
+export async function deleteScriptFile(reference: ScriptFileReference): Promise<void> {
   const dir = await getDirectoryHandle()
   if (!dir) return
-  if (isTauriDirectoryHandle(dir)) {
-    await deleteTauriFile(dir, `scripts/${scriptId}.md`)
-    return
-  }
-  try {
-    const scriptsDir = await getScriptsDir(dir)
-    await asIterableDirectory(scriptsDir).removeEntry(`${scriptId}.md`)
-  } catch {
-    // ignore
-  }
+  const existing = await resolveStoredScriptFile(dir, reference)
+  if (existing) await deleteStoredScriptFile(dir, existing.name)
 }
 
 // ===== covers/<videoId>_<orientation>.<ext> read / write / delete =====

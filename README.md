@@ -148,7 +148,7 @@ docs/
 所有业务数据通过 Web FileSystem API 写入用户本地文件系统：
 
 - `data.json` — 所有结构化数据（视频、选题、逐字稿、指标等）
-- `scripts/<id>.md` — 逐字稿 Markdown 内容
+- `scripts/<标题>--<短ID>.md` — 逐字稿 Markdown 内容；完整稳定 ID 保存在 `contentflow_id` frontmatter 中
 - 目录句柄通过 IndexedDB 持久化，避免每次刷新重新授权
 
 首次使用需在初始化页面授权目录访问权限。数据加载时包含版本迁移逻辑，自动补全缺失字段。

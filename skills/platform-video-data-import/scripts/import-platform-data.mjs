@@ -388,7 +388,10 @@ async function buildVideoEvidence(dataDir, videos, scripts, rawByPlatform) {
     let transcriptExcerpt = ''
     if (script?.id) {
       try {
-        transcriptExcerpt = coreText((await readFile(path.join(dataDir, 'scripts', `${script.id}.md`), 'utf8')).slice(0, 1800)).slice(0, 700)
+        const scriptFileName = script.fileName || `${script.id}.md`
+        const rawTranscript = await readFile(path.join(dataDir, 'scripts', scriptFileName), 'utf8')
+        const transcriptBody = rawTranscript.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '')
+        transcriptExcerpt = coreText(transcriptBody.slice(0, 1800)).slice(0, 700)
       } catch { /* transcript is optional evidence */ }
     }
     evidence.push({

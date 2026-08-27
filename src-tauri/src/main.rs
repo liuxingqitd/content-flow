@@ -185,6 +185,25 @@ fn delete_file(root: String, relative_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn rename_file(root: String, from_relative_path: String, to_relative_path: String) -> Result<(), String> {
+    let from = resolve_data_path(&root, &from_relative_path)?;
+    let to = resolve_data_path(&root, &to_relative_path)?;
+    if from == to {
+        return Ok(());
+    }
+    if !from.is_file() {
+        return Err(format!("source file does not exist: {from_relative_path}"));
+    }
+    if to.exists() {
+        return Err(format!("target file already exists: {to_relative_path}"));
+    }
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    fs::rename(from, to).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn list_markdown_files(root: String, relative_dir: String) -> Result<Vec<NativeTextFile>, String> {
     let dir = resolve_data_path(&root, &relative_dir)?;
     let entries = match fs::read_dir(dir) {
@@ -364,6 +383,7 @@ fn main() {
             read_text_file,
             write_text_file,
             delete_file,
+            rename_file,
             list_markdown_files,
             read_binary_file,
             read_cover_thumbnail,
@@ -382,6 +402,42 @@ fn main() {
 mod tests {
     use super::*;
     use image::{Rgb, RgbImage};
+
+    #[test]
+    fn renames_files_without_overwriting_or_escaping_root() {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be after unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("contentflow-rename-test-{suffix}"));
+        fs::create_dir_all(root.join("scripts")).expect("scripts directory should be created");
+        fs::write(root.join("scripts/old.md"), "source").expect("source should be written");
+
+        rename_file(
+            root.to_string_lossy().to_string(),
+            "scripts/old.md".to_string(),
+            "scripts/new.md".to_string(),
+        )
+        .expect("rename should succeed");
+        assert_eq!(fs::read_to_string(root.join("scripts/new.md")).unwrap(), "source");
+
+        fs::write(root.join("scripts/other.md"), "other").expect("other should be written");
+        assert!(rename_file(
+            root.to_string_lossy().to_string(),
+            "scripts/new.md".to_string(),
+            "scripts/other.md".to_string(),
+        )
+        .is_err());
+        assert_eq!(fs::read_to_string(root.join("scripts/other.md")).unwrap(), "other");
+        assert!(rename_file(
+            root.to_string_lossy().to_string(),
+            "../outside.md".to_string(),
+            "scripts/escaped.md".to_string(),
+        )
+        .is_err());
+
+        fs::remove_dir_all(root).expect("test files should be removed");
+    }
 
     #[test]
     fn creates_and_reuses_a_small_cover_thumbnail() {

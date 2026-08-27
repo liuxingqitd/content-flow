@@ -158,6 +158,8 @@ export interface Topic {
 
 export interface Script {
   id: string
+  /** Human-readable Markdown filename cache. Business relations must continue to use id. */
+  fileName?: string
   videoId?: string
   topicId?: string
   title: string
