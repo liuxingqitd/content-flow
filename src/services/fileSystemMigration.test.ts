@@ -1,7 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import type { AppData } from '@/types'
 import { defaultAppData } from './defaultData'
-import { migratePlatformPublishingData, migrateVideoLibraryRecords } from './fileSystem'
+import {
+  migratePlatformPublishingData,
+  migrateVideoLibraryRecords,
+  needsScriptMarkdownMigration,
+} from './fileSystem'
+
+describe('needsScriptMarkdownMigration', () => {
+  it('runs for legacy or unknown data versions only', () => {
+    expect(needsScriptMarkdownMigration(undefined)).toBe(true)
+    expect(needsScriptMarkdownMigration('invalid')).toBe(true)
+    expect(needsScriptMarkdownMigration('1.0')).toBe(true)
+    expect(needsScriptMarkdownMigration('1.1')).toBe(true)
+    expect(needsScriptMarkdownMigration('1.2')).toBe(false)
+    expect(needsScriptMarkdownMigration('1.3')).toBe(false)
+    expect(needsScriptMarkdownMigration('2.0')).toBe(false)
+  })
+})
 
 describe('migratePlatformPublishingData', () => {
   it('removes skipped entries and preserves legacy costs as dated records once', () => {

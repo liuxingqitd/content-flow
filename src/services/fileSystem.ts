@@ -66,8 +66,18 @@ const IDB_DB = 'ip_content'
 const IDB_STORE = 'handles'
 const HANDLE_KEY = 'rootDir'
 const DEMO_ID_PREFIXES = ['vid_demo', 'script_demo', 'topic_demo']
+const LEGACY_DATA_VERSION = '1.1'
+const SCRIPT_MARKDOWN_MIGRATION_VERSION = '1.2'
 
 type DataDirectoryHandle = FileSystemDirectoryHandle | TauriDirectoryHandle
+
+export function needsScriptMarkdownMigration(version: string | undefined): boolean {
+  if (!version) return true
+  const parts = version.split('.').map(part => Number.parseInt(part, 10))
+  if (parts.some(part => !Number.isFinite(part) || part < 0)) return true
+  const [major = 0, minor = 0] = parts
+  return major < 1 || (major === 1 && minor < 2)
+}
 
 type LegacyPlatformPublish = Omit<AppData['videos'][number]['platforms'][number], 'status'> & {
   status?: AppData['videos'][number]['platforms'][number]['status'] | 'skipped'
@@ -400,11 +410,11 @@ async function readSplitAppData(dir: FileSystemDirectoryHandle): Promise<AppData
     readJsonFile(dir, 'douyinRecords.json', [] as AppData['douyinRecords']),
     readJsonFile(dir, 'shipinhaoRecords.json', [] as AppData['shipinhaoRecords']),
     readJsonFile(dir, 'xiaohongshuRecords.json', [] as AppData['xiaohongshuRecords']),
-    readJsonFile(dir, 'version.json', { version: defaults.version }),
+    readJsonFile(dir, 'version.json', { version: LEGACY_DATA_VERSION }),
   ])
 
   return {
-    version: versionData.version ?? defaults.version,
+    version: versionData.version ?? LEGACY_DATA_VERSION,
     videos,
     videoRelations,
     topics,
@@ -439,11 +449,11 @@ async function readTauriSplitAppData(dir: TauriDirectoryHandle): Promise<AppData
     readTauriJsonFile(dir, 'douyinRecords.json', [] as AppData['douyinRecords']),
     readTauriJsonFile(dir, 'shipinhaoRecords.json', [] as AppData['shipinhaoRecords']),
     readTauriJsonFile(dir, 'xiaohongshuRecords.json', [] as AppData['xiaohongshuRecords']),
-    readTauriJsonFile(dir, 'version.json', { version: defaults.version }),
+    readTauriJsonFile(dir, 'version.json', { version: LEGACY_DATA_VERSION }),
   ])
 
   return {
-    version: versionData.version ?? defaults.version,
+    version: versionData.version ?? LEGACY_DATA_VERSION,
     videos,
     videoRelations,
     topics,
@@ -479,7 +489,11 @@ async function migrateToSplitFormat(dir: FileSystemDirectoryHandle): Promise<voi
   }
 
   const oldData = JSON.parse(oldText) as AppData
-  const migratedData = { ...oldData, videoRelations: oldData.videoRelations ?? [] }
+  const migratedData = {
+    ...oldData,
+    version: oldData.version ?? LEGACY_DATA_VERSION,
+    videoRelations: oldData.videoRelations ?? [],
+  }
   await writeSplitAppData(dir, migratedData)
 
   // 写备份文件
@@ -504,7 +518,11 @@ async function migrateTauriToSplitFormat(dir: TauriDirectoryHandle): Promise<voi
   if (!oldText) return
 
   const oldData = JSON.parse(oldText) as AppData
-  const migratedData = { ...oldData, videoRelations: oldData.videoRelations ?? [] }
+  const migratedData = {
+    ...oldData,
+    version: oldData.version ?? LEGACY_DATA_VERSION,
+    videoRelations: oldData.videoRelations ?? [],
+  }
   await writeTauriSplitAppData(dir, migratedData)
   await writeTauriText(dir, 'data.json.bak', oldText)
   await deleteTauriFile(dir, 'data.json')
@@ -1141,6 +1159,8 @@ async function resolveStoredScriptFile(
 }
 
 async function migrateScriptMarkdownFiles(dir: DataDirectoryHandle, data: AppData): Promise<boolean> {
+  if (!needsScriptMarkdownMigration(data.version)) return false
+
   const files = await listStoredScriptFiles(dir)
   const filesById = new Map<string, StoredScriptFile[]>()
   for (const file of files) {
@@ -1196,8 +1216,8 @@ async function migrateScriptMarkdownFiles(dir: DataDirectoryHandle, data: AppDat
     await migrateOne(id, inferReadableTitle(matches[0].content))
   }
 
-  if (data.version !== '1.2') {
-    data.version = '1.2'
+  if (data.version !== SCRIPT_MARKDOWN_MIGRATION_VERSION) {
+    data.version = SCRIPT_MARKDOWN_MIGRATION_VERSION
     changed = true
   }
   return changed

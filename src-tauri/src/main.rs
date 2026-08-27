@@ -8,7 +8,8 @@ use std::{
 };
 
 use image::{
-    codecs::jpeg::JpegEncoder, imageops::FilterType, DynamicImage, ImageDecoder, ImageReader, Limits,
+    codecs::jpeg::JpegEncoder, imageops::FilterType, DynamicImage, ImageDecoder, ImageReader,
+    Limits,
 };
 use tauri::{ipc::Response, Manager, WindowEvent};
 use tauri_plugin_shell::{
@@ -37,7 +38,10 @@ fn spawn_api_sidecar(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::E
 
     let (mut rx, child) = sidecar.spawn()?;
 
-    *app.state::<ApiSidecar>().0.lock().expect("sidecar lock poisoned") = Some(child);
+    *app.state::<ApiSidecar>()
+        .0
+        .lock()
+        .expect("sidecar lock poisoned") = Some(child);
 
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
@@ -75,11 +79,25 @@ fn resolve_data_path(root: &str, relative_path: &str) -> Result<PathBuf, String>
     let root_path = PathBuf::from(root);
     let relative = Path::new(relative_path);
 
-    if relative.is_absolute() || relative.components().any(|part| matches!(part, std::path::Component::ParentDir)) {
+    if relative.is_absolute()
+        || relative
+            .components()
+            .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
         return Err("invalid relative path".to_string());
     }
 
     Ok(root_path.join(relative))
+}
+
+async fn run_blocking_io<T, F>(operation: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(operation)
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 fn modified_iso(path: &Path) -> String {
@@ -108,21 +126,22 @@ fn is_dataless_file(_metadata: &fs::Metadata) -> bool {
 
 #[tauri::command]
 fn pick_data_directory() -> Result<Option<String>, String> {
-    Ok(rfd::FileDialog::new().pick_folder().map(|path| path.to_string_lossy().to_string()))
+    Ok(rfd::FileDialog::new()
+        .pick_folder()
+        .map(|path| path.to_string_lossy().to_string()))
 }
 
 #[tauri::command]
-fn directory_exists(path: String) -> bool {
-    PathBuf::from(path).is_dir()
+async fn directory_exists(path: String) -> Result<bool, String> {
+    run_blocking_io(move || Ok(PathBuf::from(path).is_dir())).await
 }
 
 #[tauri::command]
-fn has_directory(root: String, name: String) -> Result<bool, String> {
-    Ok(resolve_data_path(&root, &name)?.is_dir())
+async fn has_directory(root: String, name: String) -> Result<bool, String> {
+    run_blocking_io(move || Ok(resolve_data_path(&root, &name)?.is_dir())).await
 }
 
-#[tauri::command]
-fn has_markdown_files(root: String) -> Result<bool, String> {
+fn has_markdown_files_blocking(root: &str) -> Result<bool, String> {
     let root_path = PathBuf::from(root);
     let entries = match fs::read_dir(root_path) {
         Ok(entries) => entries,
@@ -132,7 +151,11 @@ fn has_markdown_files(root: String) -> Result<bool, String> {
 
     for entry in entries {
         let entry = entry.map_err(|error| error.to_string())?;
-        if entry.path().extension().is_some_and(|extension| extension == "md") {
+        if entry
+            .path()
+            .extension()
+            .is_some_and(|extension| extension == "md")
+        {
             return Ok(true);
         }
     }
@@ -141,7 +164,11 @@ fn has_markdown_files(root: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
-fn read_text_file(root: String, relative_path: String) -> Result<Option<String>, String> {
+async fn has_markdown_files(root: String) -> Result<bool, String> {
+    run_blocking_io(move || has_markdown_files_blocking(&root)).await
+}
+
+fn read_text_file_blocking(root: &str, relative_path: &str) -> Result<Option<String>, String> {
     let path = resolve_data_path(&root, &relative_path)?;
     match fs::read_to_string(path) {
         Ok(contents) => Ok(Some(contents)),
@@ -151,7 +178,16 @@ fn read_text_file(root: String, relative_path: String) -> Result<Option<String>,
 }
 
 #[tauri::command]
-fn write_text_file(root: String, relative_path: String, contents: String, validate_json: bool) -> Result<(), String> {
+async fn read_text_file(root: String, relative_path: String) -> Result<Option<String>, String> {
+    run_blocking_io(move || read_text_file_blocking(&root, &relative_path)).await
+}
+
+fn write_text_file_blocking(
+    root: &str,
+    relative_path: &str,
+    contents: String,
+    validate_json: bool,
+) -> Result<(), String> {
     if validate_json {
         serde_json::from_str::<serde_json::Value>(&contents).map_err(|error| error.to_string())?;
     }
@@ -175,7 +211,19 @@ fn write_text_file(root: String, relative_path: String, contents: String, valida
 }
 
 #[tauri::command]
-fn delete_file(root: String, relative_path: String) -> Result<(), String> {
+async fn write_text_file(
+    root: String,
+    relative_path: String,
+    contents: String,
+    validate_json: bool,
+) -> Result<(), String> {
+    run_blocking_io(move || {
+        write_text_file_blocking(&root, &relative_path, contents, validate_json)
+    })
+    .await
+}
+
+fn delete_file_blocking(root: &str, relative_path: &str) -> Result<(), String> {
     let path = resolve_data_path(&root, &relative_path)?;
     match fs::remove_file(path) {
         Ok(()) => Ok(()),
@@ -185,7 +233,15 @@ fn delete_file(root: String, relative_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn rename_file(root: String, from_relative_path: String, to_relative_path: String) -> Result<(), String> {
+async fn delete_file(root: String, relative_path: String) -> Result<(), String> {
+    run_blocking_io(move || delete_file_blocking(&root, &relative_path)).await
+}
+
+fn rename_file_blocking(
+    root: &str,
+    from_relative_path: &str,
+    to_relative_path: &str,
+) -> Result<(), String> {
     let from = resolve_data_path(&root, &from_relative_path)?;
     let to = resolve_data_path(&root, &to_relative_path)?;
     if from == to {
@@ -204,7 +260,19 @@ fn rename_file(root: String, from_relative_path: String, to_relative_path: Strin
 }
 
 #[tauri::command]
-fn list_markdown_files(root: String, relative_dir: String) -> Result<Vec<NativeTextFile>, String> {
+async fn rename_file(
+    root: String,
+    from_relative_path: String,
+    to_relative_path: String,
+) -> Result<(), String> {
+    run_blocking_io(move || rename_file_blocking(&root, &from_relative_path, &to_relative_path))
+        .await
+}
+
+fn list_markdown_files_blocking(
+    root: &str,
+    relative_dir: &str,
+) -> Result<Vec<NativeTextFile>, String> {
     let dir = resolve_data_path(&root, &relative_dir)?;
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
@@ -231,13 +299,25 @@ fn list_markdown_files(root: String, relative_dir: String) -> Result<Vec<NativeT
 }
 
 #[tauri::command]
-fn read_binary_file(root: String, relative_path: String) -> Result<Option<Vec<u8>>, String> {
+async fn list_markdown_files(
+    root: String,
+    relative_dir: String,
+) -> Result<Vec<NativeTextFile>, String> {
+    run_blocking_io(move || list_markdown_files_blocking(&root, &relative_dir)).await
+}
+
+fn read_binary_file_blocking(root: &str, relative_path: &str) -> Result<Option<Vec<u8>>, String> {
     let path = resolve_data_path(&root, &relative_path)?;
     match fs::read(path) {
         Ok(bytes) => Ok(Some(bytes)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error.to_string()),
     }
+}
+
+#[tauri::command]
+async fn read_binary_file(root: String, relative_path: String) -> Result<Option<Vec<u8>>, String> {
+    run_blocking_io(move || read_binary_file_blocking(&root, &relative_path)).await
 }
 
 fn cover_thumbnail_bytes(
@@ -353,12 +433,19 @@ async fn read_cover_thumbnail(
 }
 
 #[tauri::command]
-fn write_binary_file(root: String, relative_path: String, bytes: Vec<u8>) -> Result<(), String> {
-    let path = resolve_data_path(&root, &relative_path)?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
-    fs::write(path, bytes).map_err(|error| error.to_string())
+async fn write_binary_file(
+    root: String,
+    relative_path: String,
+    bytes: Vec<u8>,
+) -> Result<(), String> {
+    run_blocking_io(move || {
+        let path = resolve_data_path(&root, &relative_path)?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        fs::write(path, bytes).map_err(|error| error.to_string())
+    })
+    .await
 }
 
 fn main() {
@@ -404,6 +491,29 @@ mod tests {
     use image::{Rgb, RgbImage};
 
     #[test]
+    fn lists_only_markdown_files_with_their_contents() {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be after unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("contentflow-markdown-list-test-{suffix}"));
+        fs::create_dir_all(root.join("scripts/nested"))
+            .expect("scripts directory should be created");
+        fs::write(root.join("scripts/one.md"), "first").expect("markdown should be written");
+        fs::write(root.join("scripts/two.txt"), "ignored").expect("text should be written");
+        fs::write(root.join("scripts/nested/three.md"), "ignored")
+            .expect("nested markdown should be written");
+
+        let files = list_markdown_files_blocking(root.to_string_lossy().as_ref(), "scripts")
+            .expect("markdown files should be listed");
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "one.md");
+        assert_eq!(files[0].content, "first");
+        fs::remove_dir_all(root).expect("test files should be removed");
+    }
+
+    #[test]
     fn renames_files_without_overwriting_or_escaping_root() {
         let suffix = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -413,26 +523,32 @@ mod tests {
         fs::create_dir_all(root.join("scripts")).expect("scripts directory should be created");
         fs::write(root.join("scripts/old.md"), "source").expect("source should be written");
 
-        rename_file(
-            root.to_string_lossy().to_string(),
-            "scripts/old.md".to_string(),
-            "scripts/new.md".to_string(),
+        rename_file_blocking(
+            root.to_string_lossy().as_ref(),
+            "scripts/old.md",
+            "scripts/new.md",
         )
         .expect("rename should succeed");
-        assert_eq!(fs::read_to_string(root.join("scripts/new.md")).unwrap(), "source");
+        assert_eq!(
+            fs::read_to_string(root.join("scripts/new.md")).unwrap(),
+            "source"
+        );
 
         fs::write(root.join("scripts/other.md"), "other").expect("other should be written");
-        assert!(rename_file(
-            root.to_string_lossy().to_string(),
-            "scripts/new.md".to_string(),
-            "scripts/other.md".to_string(),
+        assert!(rename_file_blocking(
+            root.to_string_lossy().as_ref(),
+            "scripts/new.md",
+            "scripts/other.md",
         )
         .is_err());
-        assert_eq!(fs::read_to_string(root.join("scripts/other.md")).unwrap(), "other");
-        assert!(rename_file(
-            root.to_string_lossy().to_string(),
-            "../outside.md".to_string(),
-            "scripts/escaped.md".to_string(),
+        assert_eq!(
+            fs::read_to_string(root.join("scripts/other.md")).unwrap(),
+            "other"
+        );
+        assert!(rename_file_blocking(
+            root.to_string_lossy().as_ref(),
+            "../outside.md",
+            "scripts/escaped.md",
         )
         .is_err());
 
