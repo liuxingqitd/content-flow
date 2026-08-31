@@ -160,6 +160,7 @@ export function VideoDetail() {
 
   const [commercialAmountDraft, setCommercialAmountDraft] = useState<string | undefined>(undefined)
   const [platformDiagnosisDrafts, setPlatformDiagnosisDrafts] = useState<Partial<Record<Platform, string>>>({})
+  const [expandedPlatformDiagnoses, setExpandedPlatformDiagnoses] = useState<Partial<Record<Platform, boolean>>>({})
   const [promotionModal, setPromotionModal] = useState(false)
   const [promotionEditingId, setPromotionEditingId] = useState<string | null>(null)
   const [promotionForm, setPromotionForm] = useState({
@@ -593,6 +594,9 @@ export function VideoDetail() {
                   const pub = video.platforms.find(p => p.platform === platform)
                   const status = pub?.status ?? 'published'
                   const color = pub ? PLATFORM_STATUS_COLORS[status] : 'var(--border-subtle)'
+                  const diagnosisValue = platformDiagnosisDrafts[platform] ?? pub?.diagnosis ?? ''
+                  const hasDiagnosis = Boolean(diagnosisValue.trim())
+                  const diagnosisExpanded = Boolean(expandedPlatformDiagnoses[platform])
 
                   return (
                     <div
@@ -681,25 +685,66 @@ export function VideoDetail() {
                       )}
                       {pub && (
                         <div style={{ marginTop: 10 }}>
-                          <Textarea
-                            label="平台诊断信息"
-                            rows={7}
-                            maxLength={2000}
-                            placeholder="填写平台发布后给出的视频诊断信息，通常为 500–1000 字"
-                            value={platformDiagnosisDrafts[platform] ?? pub.diagnosis ?? ''}
-                            onChange={e => setPlatformDiagnosisDrafts(drafts => ({ ...drafts, [platform]: e.target.value }))}
-                            onBlur={e => {
-                              updatePlatformDiagnosis(video.id, platform, e.target.value)
-                              setPlatformDiagnosisDrafts(drafts => {
-                                const next = { ...drafts }
-                                delete next[platform]
-                                return next
-                              })
-                            }}
-                          />
-                          <p style={{ marginTop: 4, textAlign: 'right', fontSize: 11, color: 'var(--text-tertiary)' }}>
-                            {(platformDiagnosisDrafts[platform] ?? pub.diagnosis ?? '').length}/2000 字 · 建议 500–1000 字
-                          </p>
+                          {diagnosisExpanded ? (
+                            <>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                                <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)' }}>平台诊断信息</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedPlatformDiagnoses(expanded => ({ ...expanded, [platform]: false }))}
+                                  style={{ padding: 0, border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 11, cursor: 'pointer' }}
+                                >
+                                  收起
+                                </button>
+                              </div>
+                              <Textarea
+                                aria-label={`${PLATFORM_LABELS[platform]}平台诊断信息`}
+                                autoFocus
+                                rows={7}
+                                maxLength={2000}
+                                placeholder="填写平台发布后给出的视频诊断信息，通常为 500–1000 字"
+                                value={diagnosisValue}
+                                onChange={e => setPlatformDiagnosisDrafts(drafts => ({ ...drafts, [platform]: e.target.value }))}
+                                onBlur={e => {
+                                  if (e.target.value.trim() !== (pub.diagnosis ?? '').trim()) {
+                                    updatePlatformDiagnosis(video.id, platform, e.target.value)
+                                  }
+                                  setPlatformDiagnosisDrafts(drafts => {
+                                    const next = { ...drafts }
+                                    delete next[platform]
+                                    return next
+                                  })
+                                }}
+                              />
+                              <p style={{ marginTop: 4, textAlign: 'right', fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                {diagnosisValue.length}/2000 字 · 建议 500–1000 字
+                              </p>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              aria-expanded="false"
+                              onClick={() => setExpandedPlatformDiagnoses(expanded => ({ ...expanded, [platform]: true }))}
+                              style={{
+                                width: '100%', padding: hasDiagnosis ? '8px 10px' : '7px 10px', borderRadius: 6,
+                                border: '1px solid var(--border-subtle)', background: 'var(--bg-base)',
+                                color: 'var(--text-secondary)', cursor: 'pointer', textAlign: 'left',
+                              }}
+                            >
+                              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: hasDiagnosis ? 4 : 0 }}>
+                                <span style={{ fontSize: 11, fontWeight: 500 }}>{hasDiagnosis ? '平台诊断信息' : '添加平台诊断信息'}</span>
+                                <span style={{ flexShrink: 0, fontSize: 11, color: 'var(--accent)' }}>{hasDiagnosis ? '展开' : '填写'}</span>
+                              </span>
+                              {hasDiagnosis && (
+                                <span style={{
+                                  display: '-webkit-box', overflow: 'hidden', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2,
+                                  fontSize: 11, lineHeight: 1.55, color: 'var(--text-tertiary)', whiteSpace: 'pre-wrap',
+                                }}>
+                                  {diagnosisValue}
+                                </span>
+                              )}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
