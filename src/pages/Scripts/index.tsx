@@ -14,34 +14,19 @@ import { formatDuration } from '@/utils/date'
 import { readScriptContent, writeScriptContent, deleteScriptFile, renameScriptFileToTitle } from '@/services/fileSystem'
 import { ScriptLibraryHome } from './ScriptLibraryHome'
 import { getScriptLastEditedAt, sortScriptsByLastEdited, type ScriptPublicationStatus } from './scriptLibrary'
+import { enqueueScriptSave, waitForScriptSaves } from './scriptSaveQueue'
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
 
-const SCRIPT_LOAD_TIMEOUT_MS = 12_000
-
-const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('LOAD_TIMEOUT')), timeoutMs)
-  })
-  try {
-    return await Promise.race([promise, timeout])
-  } finally {
-    if (timer) clearTimeout(timer)
-  }
-}
-
 const scriptLoadErrorMessage = (error: unknown) => {
-  if (error instanceof Error && error.message === 'LOAD_TIMEOUT') {
-    return '读取超时。若数据存放在 iCloud，请确认文件已下载到本机后重试。'
+  if (error instanceof Error && error.message === 'ICLOUD_DOWNLOAD_TIMEOUT') {
+    return 'iCloud 下载超过 3 分钟仍未完成。请检查网络连接和 Mac 剩余空间后重试。'
   }
   const detail = error instanceof Error ? error.message : String(error)
   return `读取失败：${detail}`
 }
 
-let scriptSaveQueue: Promise<void> = Promise.resolve()
-
 const persistScriptContent = (id: string, content: string) => {
-  const save = scriptSaveQueue.then(async () => {
+  return enqueueScriptSave(id, async () => {
     const script = useAppStore.getState().data?.scripts.find(item => item.id === id)
     const fileName = await writeScriptContent(script ?? id, content)
     const wordCount = content.replace(/\s+/g, '').length
@@ -52,8 +37,6 @@ const persistScriptContent = (id: string, content: string) => {
       contentUpdatedAt: new Date().toISOString(),
     })
   })
-  scriptSaveQueue = save.catch(() => undefined)
-  return save
 }
 
 export function Scripts() {
@@ -74,6 +57,7 @@ export function Scripts() {
   const [titleValue, setTitleValue] = useState('')
   const [editorContent, setEditorContent] = useState('')
   const [loadingContent, setLoadingContent] = useState(false)
+  const [loadingFromCloud, setLoadingFromCloud] = useState(false)
   const [contentLoadError, setContentLoadError] = useState<string | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [saveState, setSaveState] = useState<SaveState>('idle')
@@ -104,27 +88,34 @@ export function Scripts() {
 
   useEffect(() => {
     let cancelled = false
+    const controller = new AbortController()
     const loadContent = async () => {
       if (!selectedId) {
         setEditorContent('')
         setSaveState('idle')
         setLoadingContent(false)
+        setLoadingFromCloud(false)
         setContentLoadError(null)
         return
       }
       setLoadingContent(true)
+      setLoadingFromCloud(false)
       setContentLoadError(null)
       setSaveState('idle')
       try {
-        const content = await withTimeout((async () => {
-          await scriptSaveQueue
-          const script = useAppStore.getState().data?.scripts.find(item => item.id === selectedId)
-          return readScriptContent(script ?? selectedId)
-        })(), SCRIPT_LOAD_TIMEOUT_MS)
+        await waitForScriptSaves(selectedId)
+        const script = useAppStore.getState().data?.scripts.find(item => item.id === selectedId)
+        const content = await readScriptContent(script ?? selectedId, {
+          signal: controller.signal,
+          onCloudDownload: () => {
+            if (!cancelled) setLoadingFromCloud(true)
+          },
+        })
         if (cancelled) return
         setEditorContent(content)
       } catch (error) {
         if (cancelled) return
+        if (error instanceof Error && error.name === 'AbortError') return
         console.error('[script load] failed:', error)
         setEditorContent('')
         setContentLoadError(scriptLoadErrorMessage(error))
@@ -134,7 +125,10 @@ export function Scripts() {
     }
 
     void loadContent()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
   }, [selectedId, loadAttempt])
 
   const doSave = useCallback(async (id: string, content: string) => {
@@ -237,7 +231,7 @@ export function Scripts() {
         autoSaveTimer.current = null
       }
     }
-    await scriptSaveQueue
+    await waitForScriptSaves(id)
     const script = scripts.find(item => item.id === id)
     await deleteScriptFile(script ?? id)
     deleteScript(id)
@@ -254,7 +248,7 @@ export function Scripts() {
     const pending = pendingRef.current
     try {
       if (pending) await doSave(pending.id, pending.content)
-      else await scriptSaveQueue
+      else if (selectedId) await waitForScriptSaves(selectedId)
     } catch {
       return
     }
@@ -267,7 +261,7 @@ export function Scripts() {
     const pending = pendingRef.current
     try {
       if (pending) await doSave(pending.id, pending.content)
-      else await scriptSaveQueue
+      else if (selectedId) await waitForScriptSaves(selectedId)
     } catch {
       return
     }
@@ -289,7 +283,7 @@ export function Scripts() {
     setRenamingFile(true)
     try {
       if (pending) await doSave(pending.id, pending.content)
-      else await scriptSaveQueue
+      else await waitForScriptSaves(selectedScript.id)
       const fileName = await renameScriptFileToTitle(selectedScript)
       if (fileName !== selectedScript.fileName) updateScript(selectedScript.id, { fileName })
     } finally {
@@ -531,8 +525,11 @@ export function Scripts() {
               </div>
 
               {loadingContent ? (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center' }}>
                   <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid var(--accent)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+                  <div style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>
+                    {loadingFromCloud ? '正在从 iCloud 下载逐字稿…' : '正在读取逐字稿…'}
+                  </div>
                 </div>
               ) : contentLoadError ? (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

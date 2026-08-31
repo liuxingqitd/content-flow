@@ -124,6 +124,54 @@ fn is_dataless_file(_metadata: &fs::Metadata) -> bool {
     false
 }
 
+const ICLOUD_FILE_NOT_DOWNLOADED: &str = "ICLOUD_FILE_NOT_DOWNLOADED";
+
+fn text_file_state_blocking(root: &str, relative_path: &str) -> Result<String, String> {
+    let path = resolve_data_path(root, relative_path)?;
+    match fs::metadata(path) {
+        Ok(metadata) if is_dataless_file(&metadata) => Ok("cloud".to_string()),
+        Ok(_) => Ok("local".to_string()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok("missing".to_string()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn ensure_file_is_materialized(path: &Path) -> Result<(), String> {
+    let metadata = fs::metadata(path).map_err(|error| error.to_string())?;
+    if is_dataless_file(&metadata) {
+        return Err(ICLOUD_FILE_NOT_DOWNLOADED.to_string());
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn request_icloud_download_blocking(root: &str, relative_path: &str) -> Result<(), String> {
+    use objc2_foundation::{NSFileManager, NSString, NSURL};
+
+    let path = resolve_data_path(root, relative_path)?;
+    let metadata = match fs::metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(format!("file does not exist: {relative_path}"));
+        }
+        Err(error) => return Err(error.to_string()),
+    };
+    if !is_dataless_file(&metadata) {
+        return Ok(());
+    }
+
+    let path = NSString::from_str(path.to_string_lossy().as_ref());
+    let url = NSURL::fileURLWithPath(&path);
+    NSFileManager::defaultManager()
+        .startDownloadingUbiquitousItemAtURL_error(&url)
+        .map_err(|error| format!("iCloud download request failed: {error:?}"))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn request_icloud_download_blocking(_root: &str, _relative_path: &str) -> Result<(), String> {
+    Ok(())
+}
+
 #[tauri::command]
 fn pick_data_directory() -> Result<Option<String>, String> {
     Ok(rfd::FileDialog::new()
@@ -170,6 +218,14 @@ async fn has_markdown_files(root: String) -> Result<bool, String> {
 
 fn read_text_file_blocking(root: &str, relative_path: &str) -> Result<Option<String>, String> {
     let path = resolve_data_path(&root, &relative_path)?;
+    match fs::metadata(&path) {
+        Ok(metadata) if is_dataless_file(&metadata) => {
+            return Err(ICLOUD_FILE_NOT_DOWNLOADED.to_string());
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+    }
     match fs::read_to_string(path) {
         Ok(contents) => Ok(Some(contents)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -180,6 +236,21 @@ fn read_text_file_blocking(root: &str, relative_path: &str) -> Result<Option<Str
 #[tauri::command]
 async fn read_text_file(root: String, relative_path: String) -> Result<Option<String>, String> {
     run_blocking_io(move || read_text_file_blocking(&root, &relative_path)).await
+}
+
+#[tauri::command]
+async fn text_file_state(root: String, relative_path: String) -> Result<String, String> {
+    run_blocking_io(move || text_file_state_blocking(&root, &relative_path)).await
+}
+
+#[tauri::command]
+async fn request_icloud_download(root: String, relative_path: String) -> Result<(), String> {
+    run_blocking_io(move || request_icloud_download_blocking(&root, &relative_path)).await
+}
+
+#[tauri::command]
+async fn file_exists(root: String, relative_path: String) -> Result<bool, String> {
+    run_blocking_io(move || Ok(resolve_data_path(&root, &relative_path)?.exists())).await
 }
 
 fn write_text_file_blocking(
@@ -287,6 +358,8 @@ fn list_markdown_files_blocking(
         if !path.is_file() || !path.extension().is_some_and(|extension| extension == "md") {
             continue;
         }
+
+        ensure_file_is_materialized(&path)?;
 
         files.push(NativeTextFile {
             name: entry.file_name().to_string_lossy().to_string(),
@@ -468,6 +541,9 @@ fn main() {
             has_directory,
             has_markdown_files,
             read_text_file,
+            text_file_state,
+            request_icloud_download,
+            file_exists,
             write_text_file,
             delete_file,
             rename_file,
@@ -510,6 +586,36 @@ mod tests {
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "one.md");
         assert_eq!(files[0].content, "first");
+        fs::remove_dir_all(root).expect("test files should be removed");
+    }
+
+    #[test]
+    fn reports_text_file_state_without_reading_the_body() {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be after unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("contentflow-file-state-test-{suffix}"));
+        fs::create_dir_all(root.join("scripts")).expect("scripts directory should be created");
+        fs::write(root.join("scripts/local.md"), "local body")
+            .expect("local markdown should be written");
+
+        assert_eq!(
+            text_file_state_blocking(root.to_string_lossy().as_ref(), "scripts/local.md")
+                .expect("local state should be readable"),
+            "local"
+        );
+        assert_eq!(
+            text_file_state_blocking(root.to_string_lossy().as_ref(), "scripts/missing.md")
+                .expect("missing state should be readable"),
+            "missing"
+        );
+        assert_eq!(
+            read_text_file_blocking(root.to_string_lossy().as_ref(), "scripts/local.md")
+                .expect("local text should be readable"),
+            Some("local body".to_string())
+        );
+
         fs::remove_dir_all(root).expect("test files should be removed");
     }
 

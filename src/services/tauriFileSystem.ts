@@ -14,6 +14,38 @@ export interface NativeTextFile {
   updated_at: string
 }
 
+export type TauriTextFileState = 'missing' | 'local' | 'cloud'
+
+export interface MaterializedTextReadOptions {
+  signal?: AbortSignal
+  onCloudDownload?: () => void
+  timeoutMs?: number
+}
+
+const ICLOUD_DOWNLOAD_TIMEOUT_MS = 180_000
+
+const abortError = () => {
+  const error = new Error('读取已取消')
+  error.name = 'AbortError'
+  return error
+}
+
+const wait = (durationMs: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
+  if (signal?.aborted) {
+    reject(abortError())
+    return
+  }
+  const timer = window.setTimeout(() => {
+    signal?.removeEventListener('abort', onAbort)
+    resolve()
+  }, durationMs)
+  const onAbort = () => {
+    window.clearTimeout(timer)
+    reject(abortError())
+  }
+  signal?.addEventListener('abort', onAbort, { once: true })
+})
+
 export function isTauriDirectoryHandle(handle: unknown): handle is TauriDirectoryHandle {
   return Boolean(handle && typeof handle === 'object' && (handle as TauriDirectoryHandle).kind === 'tauri')
 }
@@ -59,8 +91,41 @@ export async function validateTauriDataDirectory(handle: TauriDirectoryHandle): 
   }
 }
 
-export async function readTauriText(handle: TauriDirectoryHandle, relativePath: string): Promise<string | null> {
+async function readTauriRawText(handle: TauriDirectoryHandle, relativePath: string): Promise<string | null> {
   return invoke<string | null>('read_text_file', { root: handle.path, relativePath })
+}
+
+export async function readTauriText(handle: TauriDirectoryHandle, relativePath: string): Promise<string | null> {
+  return readTauriMaterializedText(handle, relativePath)
+}
+
+export async function tauriFileExists(handle: TauriDirectoryHandle, relativePath: string): Promise<boolean> {
+  return invoke<boolean>('file_exists', { root: handle.path, relativePath })
+}
+
+export async function readTauriMaterializedText(
+  handle: TauriDirectoryHandle,
+  relativePath: string,
+  options: MaterializedTextReadOptions = {},
+): Promise<string | null> {
+  const deadline = Date.now() + (options.timeoutMs ?? ICLOUD_DOWNLOAD_TIMEOUT_MS)
+  let state = await invoke<TauriTextFileState>('text_file_state', { root: handle.path, relativePath })
+  if (state === 'missing') return null
+
+  if (state === 'cloud') {
+    options.onCloudDownload?.()
+    await invoke('request_icloud_download', { root: handle.path, relativePath })
+    while (state === 'cloud') {
+      if (options.signal?.aborted) throw abortError()
+      if (Date.now() >= deadline) throw new Error('ICLOUD_DOWNLOAD_TIMEOUT')
+      await wait(500, options.signal)
+      state = await invoke<TauriTextFileState>('text_file_state', { root: handle.path, relativePath })
+    }
+    if (state === 'missing') return null
+  }
+
+  if (options.signal?.aborted) throw abortError()
+  return readTauriRawText(handle, relativePath)
 }
 
 export async function writeTauriText(

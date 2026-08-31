@@ -20,8 +20,10 @@ vi.mock('./tauriFileSystem', () => ({
   pickTauriDirectory: vi.fn(),
   readTauriBytes: vi.fn(),
   readTauriCoverThumbnail: vi.fn(),
+  readTauriMaterializedText: tauriMocks.readText,
   readTauriText: tauriMocks.readText,
   renameTauriFile: vi.fn(),
+  tauriFileExists: vi.fn(async (_handle: unknown, path: string) => tauriMocks.files.has(path)),
   tauriFileSystemAvailable: vi.fn(() => true),
   writeTauriBytes: vi.fn(),
   writeTauriText: tauriMocks.writeText,
@@ -104,6 +106,7 @@ describe('desktop startup script migration', () => {
     expect(tauriMocks.readText).toHaveBeenCalledWith(
       { kind: 'tauri', path: '/test-data' },
       'scripts/测试稿--test.md',
+      {},
     )
     expect(tauriMocks.listMarkdownFiles).not.toHaveBeenCalled()
   })
@@ -126,6 +129,39 @@ describe('desktop startup script migration', () => {
       title: '尚未保存的新稿',
       fileName: undefined,
     })).resolves.toBe('')
+    expect(tauriMocks.listMarkdownFiles).not.toHaveBeenCalled()
+  })
+
+  it('creates the first script file without enumerating existing Markdown', async () => {
+    tauriMocks.listMarkdownFiles.mockRejectedValue(new Error('MARKDOWN_SCAN_FORBIDDEN'))
+    const { writeScriptContent } = await import('./fileSystem')
+
+    await expect(writeScriptContent({
+      id: 'script_abcdef123',
+      title: '首篇新稿',
+      fileName: undefined,
+    }, '新稿正文')).resolves.toBe('首篇新稿--abcdef.md')
+    expect(tauriMocks.files.get('scripts/首篇新稿--abcdef.md')).toContain('新稿正文')
+    expect(tauriMocks.listMarkdownFiles).not.toHaveBeenCalled()
+  })
+
+  it('extends the id token on a filename collision without overwriting', async () => {
+    tauriMocks.files.set(
+      'scripts/同名稿--abcdef.md',
+      '---\ncontentflow_id: script_other\ncontentflow_schema: 1\n---\n保留正文',
+    )
+    tauriMocks.listMarkdownFiles.mockRejectedValue(new Error('MARKDOWN_SCAN_FORBIDDEN'))
+    const { writeScriptContent } = await import('./fileSystem')
+
+    const fileName = await writeScriptContent({
+      id: 'script_abcdef123',
+      title: '同名稿',
+      fileName: undefined,
+    }, '新正文')
+
+    expect(fileName).toBe('同名稿--abcdef1.md')
+    expect(tauriMocks.files.get('scripts/同名稿--abcdef.md')).toContain('保留正文')
+    expect(tauriMocks.files.get('scripts/同名稿--abcdef1.md')).toContain('新正文')
     expect(tauriMocks.listMarkdownFiles).not.toHaveBeenCalled()
   })
 })

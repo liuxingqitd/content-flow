@@ -539,6 +539,7 @@ name = "contentflow"
 version = "0.0.0"
 dependencies = [
  "image",
+ "objc2-foundation",
  "rfd",
  "serde",
  "serde_json",

@@ -10,9 +10,11 @@ import {
   listTauriMarkdownFiles,
   pickTauriDirectory,
   readTauriBytes,
+  readTauriMaterializedText,
   readTauriText,
   readTauriCoverThumbnail,
   renameTauriFile,
+  tauriFileExists,
   tauriFileSystemAvailable,
   type TauriDirectoryHandle,
   writeTauriBytes,
@@ -1037,6 +1039,11 @@ interface StoredScriptFile {
 
 export type ScriptFileReference = string | Pick<Script, 'id' | 'title' | 'fileName'>
 
+export interface ScriptReadOptions {
+  signal?: AbortSignal
+  onCloudDownload?: () => void
+}
+
 const normalizeScriptReference = (reference: ScriptFileReference) =>
   typeof reference === 'string' ? { id: reference, title: reference, fileName: undefined } : reference
 
@@ -1067,9 +1074,10 @@ async function listStoredScriptFiles(dir: DataDirectoryHandle): Promise<StoredSc
 async function readStoredScriptFile(
   dir: DataDirectoryHandle,
   name: string,
+  options: ScriptReadOptions = {},
 ): Promise<StoredScriptFile | undefined> {
   if (isTauriDirectoryHandle(dir)) {
-    const content = await readTauriText(dir, `scripts/${name}`)
+    const content = await readTauriMaterializedText(dir, `scripts/${name}`, options)
     return content === null
       ? undefined
       : { name, content, updatedAt: new Date().toISOString() }
@@ -1127,6 +1135,25 @@ async function webFileExists(directory: FileSystemDirectoryHandle, name: string)
   }
 }
 
+async function storedScriptFileExists(dir: DataDirectoryHandle, name: string): Promise<boolean> {
+  if (isTauriDirectoryHandle(dir)) return tauriFileExists(dir, `scripts/${name}`)
+  return webFileExists(await getScriptsDir(dir), name)
+}
+
+async function availableScriptFileName(
+  dir: DataDirectoryHandle,
+  title: string,
+  scriptId: string,
+  allowedName?: string,
+): Promise<string> {
+  const occupied: string[] = []
+  while (true) {
+    const candidate = createReadableScriptFileName(title, scriptId, occupied)
+    if (candidate === allowedName || !await storedScriptFileExists(dir, candidate)) return candidate
+    occupied.push(candidate)
+  }
+}
+
 async function renameStoredScriptFile(dir: DataDirectoryHandle, from: string, to: string): Promise<void> {
   if (from === to) return
   if (isTauriDirectoryHandle(dir)) {
@@ -1171,21 +1198,30 @@ function storedScriptId(file: StoredScriptFile): string | undefined {
 async function resolveStoredScriptFile(
   dir: DataDirectoryHandle,
   reference: ScriptFileReference,
+  options: ScriptReadOptions = {},
 ): Promise<StoredScriptFile | undefined> {
   const indexedReference = typeof reference !== 'string'
   const script = normalizeScriptReference(reference)
   if (script.fileName) {
-    const cached = await readStoredScriptFile(dir, script.fileName)
+    const cached = await readStoredScriptFile(dir, script.fileName, options)
     if (cached && storedScriptId(cached) === script.id) return cached
   }
 
-  const legacy = await readStoredScriptFile(dir, `${script.id}.md`)
+  const legacy = await readStoredScriptFile(dir, `${script.id}.md`, options)
   if (legacy && storedScriptId(legacy) === script.id) return legacy
 
-  // Indexed records without a filename are newly created drafts whose body
-  // has not been saved yet. They are known to be empty, so scanning the whole
-  // iCloud Vault cannot find anything and only adds latency/failure risk.
-  if (indexedReference && !script.fileName) return undefined
+  // Indexed records without a filename are normally unsaved drafts. Never
+  // scan the whole iCloud Vault for them; probe only the deterministic first
+  // filename below so an interrupted first save can still be recovered.
+  if (indexedReference && !script.fileName) {
+    // A crash can occur after the first body write but before scripts.json is
+    // updated with its filename. Probe the one deterministic candidate so the
+    // draft remains recoverable without scanning the entire iCloud directory.
+    const candidateName = createReadableScriptFileName(script.title, script.id)
+    if (!await storedScriptFileExists(dir, candidateName)) return undefined
+    const candidate = await readStoredScriptFile(dir, candidateName, options)
+    return candidate && storedScriptId(candidate) === script.id ? candidate : undefined
+  }
 
   // Compatibility fallback for legacy indexes and externally renamed files.
   // Normal reads and writes use the cached filename above and never scan the
@@ -1264,10 +1300,13 @@ async function migrateScriptMarkdownFiles(dir: DataDirectoryHandle, data: AppDat
   return changed
 }
 
-export async function readScriptContent(reference: ScriptFileReference): Promise<string> {
+export async function readScriptContent(
+  reference: ScriptFileReference,
+  options: ScriptReadOptions = {},
+): Promise<string> {
   const dir = await getDirectoryHandle()
   if (!dir) return ''
-  const file = await resolveStoredScriptFile(dir, reference)
+  const file = await resolveStoredScriptFile(dir, reference, options)
   return file ? parseScriptMarkdown(file.content).body : ''
 }
 
@@ -1302,7 +1341,7 @@ export async function writeScriptContent(reference: ScriptFileReference, content
     await writeStoredScriptFile(dir, existing.name, replaceScriptBody(existing.content, script.id, content))
     return existing.name
   }
-  const fileName = createReadableScriptFileName(script.title, script.id, (await listStoredScriptFiles(dir)).map(file => file.name))
+  const fileName = await availableScriptFileName(dir, script.title, script.id)
   await writeStoredScriptFile(dir, fileName, replaceScriptBody(null, script.id, content))
   return fileName
 }
@@ -1312,8 +1351,7 @@ export async function renameScriptFileToTitle(reference: Pick<Script, 'id' | 'ti
   if (!dir) throw new Error('NO_DIRECTORY')
   const existing = await resolveStoredScriptFile(dir, reference)
   if (!existing) throw new Error('逐字稿正文文件不存在')
-  const occupied = (await listStoredScriptFiles(dir)).filter(file => file.name !== existing.name).map(file => file.name)
-  const nextName = createReadableScriptFileName(reference.title, reference.id, occupied)
+  const nextName = await availableScriptFileName(dir, reference.title, reference.id, existing.name)
   if (nextName === existing.name) return existing.name
   const previousName = existing.name.replace(/\.md$/, '')
   const withAlias = ensureScriptMetadata(existing.content, reference.id, previousName)
