@@ -23,6 +23,7 @@ export interface MaterializedTextReadOptions {
 }
 
 const ICLOUD_DOWNLOAD_TIMEOUT_MS = 180_000
+const ICLOUD_DOWNLOAD_RETRY_MS = 10_000
 
 const abortError = () => {
   const error = new Error('读取已取消')
@@ -35,12 +36,12 @@ const wait = (durationMs: number, signal?: AbortSignal) => new Promise<void>((re
     reject(abortError())
     return
   }
-  const timer = window.setTimeout(() => {
+  const timer = globalThis.setTimeout(() => {
     signal?.removeEventListener('abort', onAbort)
     resolve()
   }, durationMs)
   const onAbort = () => {
-    window.clearTimeout(timer)
+    globalThis.clearTimeout(timer)
     reject(abortError())
   }
   signal?.addEventListener('abort', onAbort, { once: true })
@@ -115,11 +116,16 @@ export async function readTauriMaterializedText(
   if (state === 'cloud') {
     options.onCloudDownload?.()
     await invoke('request_icloud_download', { root: handle.path, relativePath })
+    let nextDownloadRequestAt = Date.now() + ICLOUD_DOWNLOAD_RETRY_MS
     while (state === 'cloud') {
       if (options.signal?.aborted) throw abortError()
       if (Date.now() >= deadline) throw new Error('ICLOUD_DOWNLOAD_TIMEOUT')
       await wait(500, options.signal)
       state = await invoke<TauriTextFileState>('text_file_state', { root: handle.path, relativePath })
+      if (state === 'cloud' && Date.now() >= nextDownloadRequestAt) {
+        await invoke('request_icloud_download', { root: handle.path, relativePath })
+        nextDownloadRequestAt = Date.now() + ICLOUD_DOWNLOAD_RETRY_MS
+      }
     }
     if (state === 'missing') return null
   }
