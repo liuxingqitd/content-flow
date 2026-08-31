@@ -16,6 +16,28 @@ import { ScriptLibraryHome } from './ScriptLibraryHome'
 import { getScriptLastEditedAt, sortScriptsByLastEdited, type ScriptPublicationStatus } from './scriptLibrary'
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
 
+const SCRIPT_LOAD_TIMEOUT_MS = 12_000
+
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('LOAD_TIMEOUT')), timeoutMs)
+  })
+  try {
+    return await Promise.race([promise, timeout])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+const scriptLoadErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message === 'LOAD_TIMEOUT') {
+    return '读取超时。若数据存放在 iCloud，请确认文件已下载到本机后重试。'
+  }
+  const detail = error instanceof Error ? error.message : String(error)
+  return `读取失败：${detail}`
+}
+
 let scriptSaveQueue: Promise<void> = Promise.resolve()
 
 const persistScriptContent = (id: string, content: string) => {
@@ -52,6 +74,8 @@ export function Scripts() {
   const [titleValue, setTitleValue] = useState('')
   const [editorContent, setEditorContent] = useState('')
   const [loadingContent, setLoadingContent] = useState(false)
+  const [contentLoadError, setContentLoadError] = useState<string | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [newModal, setNewModal] = useState(false)
   const [newTitle, setNewTitle] = useState('')
@@ -84,21 +108,34 @@ export function Scripts() {
       if (!selectedId) {
         setEditorContent('')
         setSaveState('idle')
+        setLoadingContent(false)
+        setContentLoadError(null)
         return
       }
       setLoadingContent(true)
+      setContentLoadError(null)
       setSaveState('idle')
-      await scriptSaveQueue
-      const script = useAppStore.getState().data?.scripts.find(item => item.id === selectedId)
-      const content = await readScriptContent(script ?? selectedId)
-      if (cancelled) return
-      setEditorContent(content)
-      setLoadingContent(false)
+      try {
+        const content = await withTimeout((async () => {
+          await scriptSaveQueue
+          const script = useAppStore.getState().data?.scripts.find(item => item.id === selectedId)
+          return readScriptContent(script ?? selectedId)
+        })(), SCRIPT_LOAD_TIMEOUT_MS)
+        if (cancelled) return
+        setEditorContent(content)
+      } catch (error) {
+        if (cancelled) return
+        console.error('[script load] failed:', error)
+        setEditorContent('')
+        setContentLoadError(scriptLoadErrorMessage(error))
+      } finally {
+        if (!cancelled) setLoadingContent(false)
+      }
     }
 
     void loadContent()
     return () => { cancelled = true }
-  }, [selectedId])
+  }, [selectedId, loadAttempt])
 
   const doSave = useCallback(async (id: string, content: string) => {
     if (pendingRef.current?.id === id && pendingRef.current.content === content) {
@@ -496,6 +533,14 @@ export function Scripts() {
               {loadingContent ? (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid var(--accent)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+                </div>
+              ) : contentLoadError ? (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <EmptyState
+                    title="逐字稿加载失败"
+                    description={contentLoadError}
+                    action={<Button variant="secondary" size="sm" onClick={() => setLoadAttempt(value => value + 1)}>重新加载</Button>}
+                  />
                 </div>
               ) : (
                 <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>

@@ -1064,6 +1064,31 @@ async function listStoredScriptFiles(dir: DataDirectoryHandle): Promise<StoredSc
   return files
 }
 
+async function readStoredScriptFile(
+  dir: DataDirectoryHandle,
+  name: string,
+): Promise<StoredScriptFile | undefined> {
+  if (isTauriDirectoryHandle(dir)) {
+    const content = await readTauriText(dir, `scripts/${name}`)
+    return content === null
+      ? undefined
+      : { name, content, updatedAt: new Date().toISOString() }
+  }
+
+  try {
+    const handle = await (await getScriptsDir(dir)).getFileHandle(name, { create: false })
+    const file = await handle.getFile()
+    return {
+      name,
+      content: await file.text(),
+      updatedAt: new Date(file.lastModified).toISOString(),
+    }
+  } catch (error) {
+    if (isNotFoundError(error)) return undefined
+    throw error
+  }
+}
+
 async function writeWebTextFile(directory: FileSystemDirectoryHandle, name: string, content: string): Promise<void> {
   const handle = await directory.getFileHandle(name, { create: true })
   const writable = await asWritableFile(handle).createWritable()
@@ -1147,15 +1172,31 @@ async function resolveStoredScriptFile(
   dir: DataDirectoryHandle,
   reference: ScriptFileReference,
 ): Promise<StoredScriptFile | undefined> {
+  const indexedReference = typeof reference !== 'string'
   const script = normalizeScriptReference(reference)
+  if (script.fileName) {
+    const cached = await readStoredScriptFile(dir, script.fileName)
+    if (cached && storedScriptId(cached) === script.id) return cached
+  }
+
+  const legacy = await readStoredScriptFile(dir, `${script.id}.md`)
+  if (legacy && storedScriptId(legacy) === script.id) return legacy
+
+  // Indexed records without a filename are newly created drafts whose body
+  // has not been saved yet. They are known to be empty, so scanning the whole
+  // iCloud Vault cannot find anything and only adds latency/failure risk.
+  if (indexedReference && !script.fileName) return undefined
+
+  // Compatibility fallback for legacy indexes and externally renamed files.
+  // Normal reads and writes use the cached filename above and never scan the
+  // entire Vault, which is especially important for iCloud-backed folders.
   const files = await listStoredScriptFiles(dir)
   const matches = files.filter(file => storedScriptId(file) === script.id)
   if (matches.length > 1) {
     throw new Error(`逐字稿 ID ${script.id} 对应多个文件：${matches.map(file => file.name).join('、')}`)
   }
   if (matches.length === 0) return undefined
-  const cached = script.fileName ? matches.find(file => file.name === script.fileName) : undefined
-  return cached ?? matches[0]
+  return matches[0]
 }
 
 async function migrateScriptMarkdownFiles(dir: DataDirectoryHandle, data: AppData): Promise<boolean> {

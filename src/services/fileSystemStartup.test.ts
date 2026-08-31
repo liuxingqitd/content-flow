@@ -4,6 +4,7 @@ import { defaultAppData } from './defaultData'
 const tauriMocks = vi.hoisted(() => ({
   files: new Map<string, string>(),
   listMarkdownFiles: vi.fn(),
+  readText: vi.fn(async (_handle: unknown, path: string) => tauriMocks.files.get(path) ?? null),
   writeText: vi.fn(async (_handle: unknown, path: string, contents: string) => {
     tauriMocks.files.set(path, contents)
   }),
@@ -19,7 +20,7 @@ vi.mock('./tauriFileSystem', () => ({
   pickTauriDirectory: vi.fn(),
   readTauriBytes: vi.fn(),
   readTauriCoverThumbnail: vi.fn(),
-  readTauriText: vi.fn(async (_handle: unknown, path: string) => tauriMocks.files.get(path) ?? null),
+  readTauriText: tauriMocks.readText,
   renameTauriFile: vi.fn(),
   tauriFileSystemAvailable: vi.fn(() => true),
   writeTauriBytes: vi.fn(),
@@ -59,6 +60,7 @@ describe('desktop startup script migration', () => {
     vi.resetModules()
     tauriMocks.files.clear()
     tauriMocks.listMarkdownFiles.mockReset()
+    tauriMocks.readText.mockClear()
     tauriMocks.writeText.mockClear()
   })
 
@@ -84,5 +86,46 @@ describe('desktop startup script migration', () => {
     expect(migrated.version).toBe('1.2')
     expect(loadedAgain.version).toBe('1.2')
     expect(tauriMocks.listMarkdownFiles).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads an indexed script directly without scanning every Markdown file', async () => {
+    const markdown = '---\ncontentflow_id: script_test\ncontentflow_schema: 1\n---\n正文内容'
+    tauriMocks.files.set('scripts/测试稿--test.md', markdown)
+    tauriMocks.listMarkdownFiles.mockRejectedValue(new Error('MARKDOWN_SCAN_FORBIDDEN'))
+    const { readScriptContent } = await import('./fileSystem')
+
+    const content = await readScriptContent({
+      id: 'script_test',
+      title: '测试稿',
+      fileName: '测试稿--test.md',
+    })
+
+    expect(content).toBe('正文内容')
+    expect(tauriMocks.readText).toHaveBeenCalledWith(
+      { kind: 'tauri', path: '/test-data' },
+      'scripts/测试稿--test.md',
+    )
+    expect(tauriMocks.listMarkdownFiles).not.toHaveBeenCalled()
+  })
+
+  it('uses the legacy id filename before falling back to a directory scan', async () => {
+    tauriMocks.files.set('scripts/script_legacy.md', '旧格式正文')
+    tauriMocks.listMarkdownFiles.mockRejectedValue(new Error('MARKDOWN_SCAN_FORBIDDEN'))
+    const { readScriptContent } = await import('./fileSystem')
+
+    await expect(readScriptContent('script_legacy')).resolves.toBe('旧格式正文')
+    expect(tauriMocks.listMarkdownFiles).not.toHaveBeenCalled()
+  })
+
+  it('treats a new indexed draft without a filename as empty without scanning', async () => {
+    tauriMocks.listMarkdownFiles.mockRejectedValue(new Error('MARKDOWN_SCAN_FORBIDDEN'))
+    const { readScriptContent } = await import('./fileSystem')
+
+    await expect(readScriptContent({
+      id: 'script_new',
+      title: '尚未保存的新稿',
+      fileName: undefined,
+    })).resolves.toBe('')
+    expect(tauriMocks.listMarkdownFiles).not.toHaveBeenCalled()
   })
 })
