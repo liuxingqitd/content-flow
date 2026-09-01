@@ -188,6 +188,7 @@ export function defaultAppData(): AppData {
     transitionChecklists: DEFAULT_TRANSITION_CHECKLISTS,
     videos: VIDEOS,
     videoRelations: [],
+    calendarEvents: [],
     topics: TOPICS,
     scripts: SCRIPTS,
     metrics: [],

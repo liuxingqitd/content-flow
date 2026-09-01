@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import type { AppData, Video, Topic, Script, Tag, VideoMetrics, AppSettings, VideoStatus, Platform, PlatformPublish, TransitionKey, DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord, VideoRelation } from '@/types'
+import type { AppData, Video, Topic, Script, Tag, VideoMetrics, AppSettings, VideoStatus, Platform, PlatformPublish, TransitionKey, DouyinRawRecord, ShipinhaoRawRecord, XiaohongshuRawRecord, VideoRelation, CalendarEvent } from '@/types'
 import { now } from '@/utils/date'
-import { videoId, topicId, scriptId, tagId, metricId, checklistItemId, videoRelationId, promotionRecordId } from '@/utils/id'
+import { videoId, topicId, scriptId, tagId, metricId, checklistItemId, videoRelationId, promotionRecordId, calendarEventId } from '@/utils/id'
 import { readAppData, writeAppData } from '@/services/fileSystem'
 import { deleteTopicAndDetach, deleteTopicWithLinkedContent } from './topicData'
 import { canMoveVideoToStatus, getVideoLibraryAddedAt } from '@/pages/Videos/videoWorkflow'
@@ -28,6 +28,11 @@ interface AppState {
   addVideoRelation: (fromVideoId: string, toVideoId: string, note?: string) => void
   updateVideoRelation: (id: string, note: string | undefined) => void
   deleteVideoRelation: (id: string) => void
+
+  // Calendar events
+  addCalendarEvent: (event: Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt'>) => void
+  updateCalendarEvent: (id: string, patch: Partial<Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt'>>) => void
+  deleteCalendarEvent: (id: string) => void
 
   // Topics
   addTopic: (t: Omit<Topic, 'id' | 'createdAt' | 'updatedAt'>) => void
@@ -328,6 +333,39 @@ export const useAppStore = create<AppState>()(
       set(s => {
         if (!s.data) return
         s.data.videoRelations = s.data.videoRelations.filter(r => r.id !== id)
+      })
+      scheduleSave(get)
+    },
+
+    // ---- Calendar events ----
+    addCalendarEvent: (event) => {
+      set(s => {
+        if (!s.data) return
+        const timestamp = now()
+        s.data.calendarEvents.push({
+          ...event,
+          id: calendarEventId(),
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        })
+      })
+      scheduleSave(get)
+    },
+
+    updateCalendarEvent: (id, patch) => {
+      set(s => {
+        if (!s.data) return
+        const event = s.data.calendarEvents.find(item => item.id === id)
+        if (!event) return
+        Object.assign(event, patch, { updatedAt: now() })
+      })
+      scheduleSave(get)
+    },
+
+    deleteCalendarEvent: (id) => {
+      set(s => {
+        if (!s.data) return
+        s.data.calendarEvents = s.data.calendarEvents.filter(event => event.id !== id)
       })
       scheduleSave(get)
     },

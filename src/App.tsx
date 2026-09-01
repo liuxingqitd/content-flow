@@ -16,6 +16,7 @@ const Topics      = lazy(() => import('@/pages/Topics').then(m => ({ default: m.
 const Scripts     = lazy(() => import('@/pages/Scripts').then(m => ({ default: m.Scripts })))
 const Analytics   = lazy(() => import('@/pages/Analytics').then(m => ({ default: m.Analytics })))
 const Settings    = lazy(() => import('@/pages/Settings').then(m => ({ default: m.Settings })))
+const Calendar    = lazy(() => import('@/pages/Calendar').then(m => ({ default: m.CalendarPage })))
 
 function LoadingFallback() {
   return (
@@ -52,6 +53,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/dashboard',   element: <Dashboard /> },
       { path: '/kanban',      element: <Kanban /> },
+      { path: '/calendar',    element: <Calendar /> },
       { path: '/videos',      element: <Videos /> },
       { path: '/videos/:id',  element: <VideoDetail /> },
       { path: '/topics',      element: <Topics /> },

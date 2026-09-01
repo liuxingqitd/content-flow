@@ -74,7 +74,28 @@ describe('desktop startup script migration', () => {
     const data = await readAppData()
 
     expect(data.version).toBe('1.2')
+    expect(data.calendarEvents).toEqual([])
     expect(tauriMocks.listMarkdownFiles).not.toHaveBeenCalled()
+  })
+
+  it('persists calendar events in their own split data file', async () => {
+    seedSplitData('1.2')
+    const { readAppData, writeAppData } = await import('./fileSystem')
+    const data = await readAppData()
+    data.calendarEvents.push({
+      id: 'event_hackathon',
+      title: '21 天 AI 实战黑客松',
+      startDate: '2026-08-31',
+      endDate: '2026-09-24',
+      description: '9 月 22 日提交截止，9 月 22 日和 24 日公开直播',
+      url: 'https://example.com/hackathon',
+      createdAt: '2026-09-01T00:00:00.000Z',
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    })
+
+    await writeAppData(data)
+
+    expect(JSON.parse(tauriMocks.files.get('calendarEvents.json') ?? '[]')).toEqual(data.calendarEvents)
   })
 
   it('runs the legacy migration once and skips it on the next load', async () => {
