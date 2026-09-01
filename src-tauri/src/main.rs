@@ -75,17 +75,6 @@ fn stop_api_sidecar<R: tauri::Runtime>(manager: &impl Manager<R>) {
     }
 }
 
-#[tauri::command]
-fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
-    let normalized = url.to_ascii_lowercase();
-    if !(normalized.starts_with("https://") || normalized.starts_with("http://")) {
-        return Err("only http and https links are supported".to_string());
-    }
-    app.shell()
-        .open(url, None)
-        .map_err(|error| error.to_string())
-}
-
 fn resolve_data_path(root: &str, relative_path: &str) -> Result<PathBuf, String> {
     let root_path = PathBuf::from(root);
     let relative = Path::new(relative_path);
@@ -547,7 +536,6 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            open_external_url,
             pick_data_directory,
             directory_exists,
             has_directory,

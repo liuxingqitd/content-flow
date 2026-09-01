@@ -55,19 +55,6 @@ export interface ChecklistItem {
   createdAt: string
 }
 
-export interface CalendarEvent {
-  id: string
-  title: string
-  /** Inclusive local calendar date in YYYY-MM-DD format. */
-  startDate: string
-  /** Inclusive local calendar date in YYYY-MM-DD format. */
-  endDate: string
-  description?: string
-  url?: string
-  createdAt: string
-  updatedAt: string
-}
-
 export interface PlatformPublish {
   platform: Platform
   status: PlatformPublishStatus
@@ -286,7 +273,6 @@ export interface AppData {
   transitionChecklists: Record<TransitionKey, ChecklistItem[]>
   videos: Video[]
   videoRelations: VideoRelation[]
-  calendarEvents: CalendarEvent[]
   topics: Topic[]
   metrics: VideoMetrics[]
   scripts: Script[]

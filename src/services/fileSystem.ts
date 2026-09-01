@@ -356,7 +356,6 @@ async function writeSplitAppData(dir: FileSystemDirectoryHandle, data: AppData):
   await Promise.all([
     writeSingleFile(dir, 'videos.json', data.videos),
     writeSingleFile(dir, 'videoRelations.json', data.videoRelations),
-    writeSingleFile(dir, 'calendarEvents.json', data.calendarEvents),
     writeSingleFile(dir, 'topics.json', data.topics),
     writeSingleFile(dir, 'scripts.json', data.scripts),
     writeSingleFile(dir, 'metrics.json', data.metrics),
@@ -378,7 +377,6 @@ async function writeTauriSplitAppData(dir: TauriDirectoryHandle, data: AppData):
   await Promise.all([
     writeTauriJsonFile(dir, 'videos.json', data.videos),
     writeTauriJsonFile(dir, 'videoRelations.json', data.videoRelations),
-    writeTauriJsonFile(dir, 'calendarEvents.json', data.calendarEvents),
     writeTauriJsonFile(dir, 'topics.json', data.topics),
     writeTauriJsonFile(dir, 'scripts.json', data.scripts),
     writeTauriJsonFile(dir, 'metrics.json', data.metrics),
@@ -398,11 +396,10 @@ async function writeTauriSplitAppData(dir: TauriDirectoryHandle, data: AppData):
 async function readSplitAppData(dir: FileSystemDirectoryHandle): Promise<AppData> {
   const defaults = defaultAppData()
   const [
-    videos, videoRelations, calendarEvents, topics, scripts, metrics, tags, checklists, settings, douyinRecords, shipinhaoRecords, xiaohongshuRecords, versionData,
+    videos, videoRelations, topics, scripts, metrics, tags, checklists, settings, douyinRecords, shipinhaoRecords, xiaohongshuRecords, versionData,
   ] = await Promise.all([
     readJsonFile(dir, 'videos.json', [] as AppData['videos']),
     readJsonFile(dir, 'videoRelations.json', [] as AppData['videoRelations']),
-    readJsonFile(dir, 'calendarEvents.json', [] as AppData['calendarEvents']),
     readJsonFile(dir, 'topics.json', [] as AppData['topics']),
     readJsonFile(dir, 'scripts.json', [] as AppData['scripts']),
     readJsonFile(dir, 'metrics.json', [] as AppData['metrics']),
@@ -422,7 +419,6 @@ async function readSplitAppData(dir: FileSystemDirectoryHandle): Promise<AppData
     version: versionData.version ?? LEGACY_DATA_VERSION,
     videos,
     videoRelations,
-    calendarEvents,
     topics,
     scripts,
     metrics,
@@ -439,11 +435,10 @@ async function readSplitAppData(dir: FileSystemDirectoryHandle): Promise<AppData
 async function readTauriSplitAppData(dir: TauriDirectoryHandle): Promise<AppData> {
   const defaults = defaultAppData()
   const [
-    videos, videoRelations, calendarEvents, topics, scripts, metrics, tags, checklists, settings, douyinRecords, shipinhaoRecords, xiaohongshuRecords, versionData,
+    videos, videoRelations, topics, scripts, metrics, tags, checklists, settings, douyinRecords, shipinhaoRecords, xiaohongshuRecords, versionData,
   ] = await Promise.all([
     readTauriJsonFile(dir, 'videos.json', [] as AppData['videos']),
     readTauriJsonFile(dir, 'videoRelations.json', [] as AppData['videoRelations']),
-    readTauriJsonFile(dir, 'calendarEvents.json', [] as AppData['calendarEvents']),
     readTauriJsonFile(dir, 'topics.json', [] as AppData['topics']),
     readTauriJsonFile(dir, 'scripts.json', [] as AppData['scripts']),
     readTauriJsonFile(dir, 'metrics.json', [] as AppData['metrics']),
@@ -463,7 +458,6 @@ async function readTauriSplitAppData(dir: TauriDirectoryHandle): Promise<AppData
     version: versionData.version ?? LEGACY_DATA_VERSION,
     videos,
     videoRelations,
-    calendarEvents,
     topics,
     scripts,
     metrics,
@@ -501,7 +495,6 @@ async function migrateToSplitFormat(dir: FileSystemDirectoryHandle): Promise<voi
     ...oldData,
     version: oldData.version ?? LEGACY_DATA_VERSION,
     videoRelations: oldData.videoRelations ?? [],
-    calendarEvents: oldData.calendarEvents ?? [],
   }
   await writeSplitAppData(dir, migratedData)
 
@@ -531,7 +524,6 @@ async function migrateTauriToSplitFormat(dir: TauriDirectoryHandle): Promise<voi
     ...oldData,
     version: oldData.version ?? LEGACY_DATA_VERSION,
     videoRelations: oldData.videoRelations ?? [],
-    calendarEvents: oldData.calendarEvents ?? [],
   }
   await writeTauriSplitAppData(dir, migratedData)
   await writeTauriText(dir, 'data.json.bak', oldText)
@@ -583,10 +575,6 @@ export async function readAppData(): Promise<AppData> {
   // One-time migration: add video relations collection for existing installations
   if (!data.videoRelations) {
     data.videoRelations = []
-    changed = true
-  }
-  if (!data.calendarEvents) {
-    data.calendarEvents = []
     changed = true
   }
 
@@ -704,10 +692,6 @@ async function readTauriAppData(dir: TauriDirectoryHandle): Promise<AppData> {
     data.videoRelations = []
     changed = true
   }
-  if (!data.calendarEvents) {
-    data.calendarEvents = []
-    changed = true
-  }
   if (data.metrics?.some(m => m.videoId === 'vid_demo01')) {
     data.metrics = data.metrics.filter(m => m.videoId !== 'vid_demo01')
     changed = true
@@ -815,7 +799,6 @@ function emptyAppData(): AppData {
     ...defaultAppData(),
     videos: [],
     videoRelations: [],
-    calendarEvents: [],
     topics: [],
     scripts: [],
     metrics: [],

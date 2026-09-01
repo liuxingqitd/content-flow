@@ -13,10 +13,6 @@ const NAV_GROUPS = [
         path: '/kanban', label: '内容看板',
         icon: <svg width="15" height="15" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth="1.5"><path d="M2 2.5h3.5v11H2zM6.25 2.5h3.5v7H6.25zM10.5 2.5H14v5h-3.5z" strokeLinejoin="round"/></svg>,
       },
-      {
-        path: '/calendar', label: '内容月历',
-        icon: <svg width="15" height="15" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3.5" width="12" height="10.5" rx="1"/><path d="M5 2v3M11 2v3M2 7h12M5 9.5h.01M8 9.5h.01M11 9.5h.01M5 12h.01M8 12h.01"/></svg>,
-      },
     ],
   },
   {
