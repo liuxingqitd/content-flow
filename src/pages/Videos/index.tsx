@@ -31,6 +31,7 @@ import {
 } from './videoListFilters'
 import {
   getVisibleVideoTableColumns,
+  isDouyinFeatured,
   matchesVideoListSearch,
   shouldShowVideoLibraryStatusBadge,
 } from './videoListPresentation'
@@ -93,11 +94,14 @@ export function Videos() {
   }, [isSearchComposing, search, searchInput, setSearchParams])
 
   const violated = displayVideos.filter(v => v.platforms.some(p => (p.status ?? 'published') === 'violated'))
+  const douyinFeatured = displayVideos.filter(isDouyinFeatured)
 
   const filtered = useMemo(() => {
     let list = displayVideos
-    if (filterPlatform) {
+    if (filterPlatform === 'violated') {
       list = list.filter(v => v.platforms.some(p => (p.status ?? 'published') === filterPlatform))
+    } else if (filterPlatform === 'douyin_featured') {
+      list = list.filter(isDouyinFeatured)
     } else if (filterStatus !== 'all') {
       list = list.filter(v => v.status === filterStatus)
     }
@@ -233,6 +237,15 @@ export function Videos() {
               activeBg="rgba(248,113,113,0.14)"
             />
           )}
+          {douyinFeatured.length > 0 && (
+            <FilterChip
+              active={filterPlatform === 'douyin_featured'}
+              onClick={() => setPlatformFilter('douyin_featured')}
+              label={`抖音精选 (${douyinFeatured.length})`}
+              color="#fe2c55"
+              activeBg="rgba(254,44,85,0.12)"
+            />
+          )}
         </div>
       </div>
 
@@ -296,6 +309,7 @@ export function Videos() {
                     <td style={{ padding: '10px 16px', minWidth: 0, borderBottom: idx < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <p style={{ flex: 1, minWidth: 0, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>{video.title}</p>
+                        {isDouyinFeatured(video) && <Badge color="#fe2c55">抖音精选</Badge>}
                         {shouldShowVideoLibraryStatusBadge(video.status) && <StatusBadge status={video.status} />}
                       </div>
                       {video.description && (

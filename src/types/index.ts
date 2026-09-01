@@ -103,6 +103,8 @@ export interface Video {
   title: string
   status: VideoStatus
   tagIds: string[]
+  /** Whether this video has been selected for Douyin Featured. Missing means not featured. */
+  isDouyinFeatured?: boolean
   shootingFormats?: ShootingFormat[]
   isCommercial?: boolean
   commercialBrandName?: string

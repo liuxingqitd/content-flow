@@ -33,6 +33,10 @@ describe('video list filters', () => {
     expect(readVideoListFilters(new URLSearchParams('status=pending_publish')).status).toBe('pending_publish')
   })
 
+  it('restores the Douyin Featured filter from the URL', () => {
+    expect(readVideoListFilters(new URLSearchParams('platform=douyin_featured')).platform).toBe('douyin_featured')
+  })
+
   it('switches atomically between commercial and regular tag filters', () => {
     const shared = 'q=test&status=archived&platform=violated'
 

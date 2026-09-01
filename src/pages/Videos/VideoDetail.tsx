@@ -657,7 +657,7 @@ export function VideoDetail() {
 
                       {/* Detail row */}
                       {pub && status === 'published' && (
-                        <div style={{ marginTop: 4 }}>
+                        <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-tertiary)' }}>
                             <span style={{ flexShrink: 0 }}>发布时间</span>
                             <input
@@ -676,6 +676,22 @@ export function VideoDetail() {
                               onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)' }}
                             />
                           </label>
+                          {platform === 'douyin' && (
+                            <button
+                              type="button"
+                              aria-pressed={video.isDouyinFeatured === true}
+                              onClick={() => updateVideo(video.id, { isDouyinFeatured: !video.isDouyinFeatured })}
+                              style={{
+                                flexShrink: 0, padding: '4px 9px', borderRadius: 99, fontSize: 11, fontWeight: 600,
+                                border: `1px solid ${video.isDouyinFeatured ? '#fe2c55' : 'var(--border-subtle)'}`,
+                                background: video.isDouyinFeatured ? 'rgba(254,44,85,0.1)' : 'transparent',
+                                color: video.isDouyinFeatured ? '#fe2c55' : 'var(--text-tertiary)',
+                                cursor: 'pointer', transition: 'all .1s',
+                              }}
+                            >
+                              {video.isDouyinFeatured ? '已标记精选' : '标记抖音精选'}
+                            </button>
+                          )}
                         </div>
                       )}
                       {pub && status === 'violated' && pub.violation && (

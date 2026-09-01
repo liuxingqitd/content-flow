@@ -38,3 +38,7 @@ export function matchesVideoListSearch(
 export function shouldShowVideoLibraryStatusBadge(status: Video['status']) {
   return status !== 'published'
 }
+
+export function isDouyinFeatured(video: Pick<Video, 'isDouyinFeatured'>) {
+  return video.isDouyinFeatured === true
+}

@@ -1,6 +1,6 @@
 import type { VideoStatus } from '@/types'
 
-export type VideoPlatformFilter = 'violated'
+export type VideoPlatformFilter = 'violated' | 'douyin_featured'
 export const COMMERCIAL_TAG_FILTER_VALUE = '__commercial__'
 
 export interface VideoListFilters {
@@ -22,7 +22,11 @@ export function readVideoListFilters(searchParams: URLSearchParams): VideoListFi
     status: statusParam && FILTERABLE_STATUSES.has(statusParam)
       ? statusParam as VideoStatus
       : 'all',
-    platform: searchParams.get('platform') === 'violated' ? 'violated' : null,
+    platform: searchParams.get('platform') === 'violated'
+      ? 'violated'
+      : searchParams.get('platform') === 'douyin_featured'
+        ? 'douyin_featured'
+        : null,
     tagId: searchParams.get('tag') || 'all',
     commercialOnly: searchParams.get('commercial') === '1',
   }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getVisibleVideoTableColumns,
+  isDouyinFeatured,
   matchesVideoListSearch,
   shouldShowVideoLibraryStatusBadge,
 } from './videoListPresentation'
@@ -35,5 +36,11 @@ describe('video list presentation privacy', () => {
     expect(shouldShowVideoLibraryStatusBadge('published')).toBe(false)
     expect(shouldShowVideoLibraryStatusBadge('pending_publish')).toBe(true)
     expect(shouldShowVideoLibraryStatusBadge('archived')).toBe(true)
+  })
+
+  it('treats only an explicit Douyin Featured marker as featured', () => {
+    expect(isDouyinFeatured({ isDouyinFeatured: true })).toBe(true)
+    expect(isDouyinFeatured({ isDouyinFeatured: false })).toBe(false)
+    expect(isDouyinFeatured({})).toBe(false)
   })
 })

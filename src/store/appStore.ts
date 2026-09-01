@@ -635,6 +635,8 @@ export const useAppStore = create<AppState>()(
         video.platforms = video.platforms.filter(p => p.platform !== platform)
         if (entry !== null) {
           video.platforms.push({ platform, ...entry })
+        } else if (platform === 'douyin') {
+          delete video.isDouyinFeatured
         }
         video.updatedAt = now()
       })
