@@ -742,7 +742,7 @@ export function VideoDetail() {
                               aria-expanded="false"
                               onClick={() => setExpandedPlatformDiagnoses(expanded => ({ ...expanded, [platform]: true }))}
                               style={{
-                                width: '100%', padding: hasDiagnosis ? '8px 10px' : '7px 10px', borderRadius: 6,
+                                display: 'block', width: '100%', height: 'auto', padding: hasDiagnosis ? '8px 10px' : '7px 10px', borderRadius: 6,
                                 border: '1px solid var(--border-subtle)', background: 'var(--bg-base)',
                                 color: 'var(--text-secondary)', cursor: 'pointer', textAlign: 'left',
                               }}
@@ -752,9 +752,11 @@ export function VideoDetail() {
                                 <span style={{ flexShrink: 0, fontSize: 11, color: 'var(--accent)' }}>{hasDiagnosis ? '展开' : '填写'}</span>
                               </span>
                               {hasDiagnosis && (
+                                // WKWebView may reserve the full intrinsic height of a -webkit-line-clamped
+                                // element. A definite two-line max-height keeps the collapsed card compact.
                                 <span style={{
-                                  display: '-webkit-box', overflow: 'hidden', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2,
-                                  fontSize: 11, lineHeight: 1.55, color: 'var(--text-tertiary)', whiteSpace: 'pre-wrap',
+                                  display: 'block', maxHeight: '3.1em', overflow: 'hidden',
+                                  fontSize: 11, lineHeight: 1.55, color: 'var(--text-tertiary)', whiteSpace: 'normal', wordBreak: 'break-word',
                                 }}>
                                   {diagnosisValue}
                                 </span>
