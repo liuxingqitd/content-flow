@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { useAppStore } from '@/store/appStore'
+import { isChecklistComplete } from './checklistCompletion'
 
 interface PublishChecklistDialogProps {
   open: boolean
@@ -13,7 +14,7 @@ export function PublishChecklistDialog({ open, videoTitle, onConfirm, onCancel }
   const checklistItems = useAppStore(s => s.data?.checklistItems ?? [])
   const [checked, setChecked] = useState<Record<string, boolean>>({})
 
-  const allChecked = checklistItems.length > 0 && checklistItems.every(item => checked[item.id])
+  const allChecked = isChecklistComplete(checklistItems, checked)
 
   const toggle = (id: string) => setChecked(prev => ({ ...prev, [id]: !prev[id] }))
 
@@ -23,6 +24,7 @@ export function PublishChecklistDialog({ open, videoTitle, onConfirm, onCancel }
   }
 
   const handleConfirm = () => {
+    if (!allChecked) return
     setChecked({})
     onConfirm()
   }
@@ -85,7 +87,9 @@ export function PublishChecklistDialog({ open, videoTitle, onConfirm, onCancel }
             发布前检查清单
           </h3>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, textAlign: 'center', lineHeight: 1.5 }}>
-            请逐项确认后方可标记为「已发布」
+            {checklistItems.length === 0
+              ? '暂无发布前检查要求，可直接标记为「已发布」'
+              : '请逐项确认后方可标记为「已发布」'}
           </p>
         </div>
 
@@ -106,7 +110,7 @@ export function PublishChecklistDialog({ open, videoTitle, onConfirm, onCancel }
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {checklistItems.length === 0 ? (
             <div style={{ padding: '16px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-tertiary)' }}>
-              暂无检查项，可在设置页面添加
+              暂无检查项，可直接发布；可在设置页面添加
             </div>
           ) : checklistItems.map((item, i) => {
             const isChecked = !!checked[item.id]
@@ -159,7 +163,7 @@ export function PublishChecklistDialog({ open, videoTitle, onConfirm, onCancel }
         </div>
 
         {/* 全部勾选后的提示 */}
-        {allChecked && (
+        {checklistItems.length > 0 && allChecked && (
           <div style={{
             marginTop: 14, padding: '9px 14px', borderRadius: 8,
             background: 'rgba(16,185,129,0.08)',
